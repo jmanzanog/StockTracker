@@ -15,19 +15,21 @@ import (
 )
 
 const (
-	baseURL          = "https://api.twelvedata.com"
+	defaultBaseURL   = "https://api.twelvedata.com"
 	symbolSearchPath = "/symbol_search"
 	quotePath        = "/quote"
 )
 
 type Client struct {
+	baseURL    string
 	apiKey     string
 	httpClient *http.Client
 }
 
 func NewClient(apiKey string) *Client {
 	return &Client{
-		apiKey: apiKey,
+		baseURL: defaultBaseURL,
+		apiKey:  apiKey,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -53,6 +55,7 @@ type quoteResponse struct {
 	Datetime string `json:"datetime"`
 	Close    string `json:"close"`
 	Status   string `json:"status"`
+	Message  string `json:"message"`
 }
 
 func (c *Client) SearchByISIN(ctx context.Context, isin string) (*domain.Instrument, error) {
@@ -60,7 +63,7 @@ func (c *Client) SearchByISIN(ctx context.Context, isin string) (*domain.Instrum
 	params.Add("symbol", isin)
 	params.Add("apikey", c.apiKey)
 
-	reqURL := fmt.Sprintf("%s%s?%s", baseURL, symbolSearchPath, params.Encode())
+	reqURL := fmt.Sprintf("%s%s?%s", c.baseURL, symbolSearchPath, params.Encode())
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -110,7 +113,7 @@ func (c *Client) GetQuote(ctx context.Context, symbol string) (*marketdata.Quote
 	params.Add("symbol", symbol)
 	params.Add("apikey", c.apiKey)
 
-	reqURL := fmt.Sprintf("%s%s?%s", baseURL, quotePath, params.Encode())
+	reqURL := fmt.Sprintf("%s%s?%s", c.baseURL, quotePath, params.Encode())
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -133,8 +136,12 @@ func (c *Client) GetQuote(ctx context.Context, symbol string) (*marketdata.Quote
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if quoteResp.Status != "ok" {
-		return nil, fmt.Errorf("quote request failed for symbol: %s", symbol)
+	if quoteResp.Status == "error" {
+		return nil, fmt.Errorf("quote request failed for symbol %s: %s", symbol, quoteResp.Message)
+	}
+
+	if quoteResp.Close == "" {
+		return nil, fmt.Errorf("quote request returned no price data for symbol: %s", symbol)
 	}
 
 	price, err := decimal.NewFromString(quoteResp.Close)
