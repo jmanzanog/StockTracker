@@ -9,13 +9,13 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/josemanzano/stock-tracker/internal/domain"
-	"github.com/josemanzano/stock-tracker/internal/infrastructure/marketdata"
+	"github.com/jmanzanog/stock-tracker/internal/domain"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 	"github.com/shopspring/decimal"
 )
 
 const (
-	baseURL        = "https://api.twelvedata.com"
+	baseURL          = "https://api.twelvedata.com"
 	symbolSearchPath = "/symbol_search"
 	quotePath        = "/quote"
 )

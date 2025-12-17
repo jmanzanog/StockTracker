@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/josemanzano/stock-tracker/internal/application"
+	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/shopspring/decimal"
 )
 
@@ -85,14 +85,14 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 	}
 
 	summary := map[string]interface{}{
-		"id":                      portfolio.ID,
-		"name":                    portfolio.Name,
-		"positions":               portfolio.Positions,
-		"total_value":             portfolio.TotalValue(),
-		"total_invested":          portfolio.TotalInvested(),
-		"total_profit_loss":       portfolio.TotalProfitLoss(),
+		"id":                        portfolio.ID,
+		"name":                      portfolio.Name,
+		"positions":                 portfolio.Positions,
+		"total_value":               portfolio.TotalValue(),
+		"total_invested":            portfolio.TotalInvested(),
+		"total_profit_loss":         portfolio.TotalProfitLoss(),
 		"total_profit_loss_percent": portfolio.TotalProfitLossPercent(),
-		"created_at":              portfolio.CreatedAt,
+		"created_at":                portfolio.CreatedAt,
 	}
 
 	c.JSON(http.StatusOK, summary)

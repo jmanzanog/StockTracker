@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/josemanzano/stock-tracker/internal/domain"
-	"github.com/josemanzano/stock-tracker/internal/infrastructure/marketdata"
+	"github.com/jmanzanog/stock-tracker/internal/domain"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 	"github.com/shopspring/decimal"
 )
 
@@ -17,15 +17,15 @@ type PortfolioRepository interface {
 }
 
 type PortfolioService struct {
-	repo           PortfolioRepository
-	marketData     marketdata.MarketDataProvider
+	repo             PortfolioRepository
+	marketData       marketdata.MarketDataProvider
 	defaultPortfolio *domain.Portfolio
 }
 
 func NewPortfolioService(repo PortfolioRepository, marketData marketdata.MarketDataProvider) *PortfolioService {
 	defaultPortfolio := domain.NewPortfolio("default")
 	repo.Save(&defaultPortfolio)
-	
+
 	return &PortfolioService{
 		repo:             repo,
 		marketData:       marketData,
@@ -90,7 +90,7 @@ func (s *PortfolioService) GetPortfolioSummary(ctx context.Context) (*domain.Por
 func (s *PortfolioService) RefreshPrices(ctx context.Context) error {
 	for i := range s.defaultPortfolio.Positions {
 		pos := &s.defaultPortfolio.Positions[i]
-		
+
 		quote, err := s.marketData.GetQuote(ctx, pos.Instrument.Symbol)
 		if err != nil {
 			return fmt.Errorf("failed to get quote for %s: %w", pos.Instrument.Symbol, err)

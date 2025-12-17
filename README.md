@@ -37,7 +37,7 @@ stock-tracker/
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/josemanzano/stock-tracker.git
+git clone https://github.com/jmanzanog/stock-tracker.git
 cd stock-tracker
 ```
 

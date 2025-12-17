@@ -1,4 +1,4 @@
-module github.com/josemanzano/stock-tracker
+module github.com/jmanzanog/stock-tracker
 
 go 1.24.1
 

@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmanzanog/stock-tracker/internal/application"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/config"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/twelvedata"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/memory"
+	httpHandler "github.com/jmanzanog/stock-tracker/internal/interfaces/http"
 	"github.com/joho/godotenv"
-	"github.com/josemanzano/stock-tracker/internal/application"
-	"github.com/josemanzano/stock-tracker/internal/infrastructure/config"
-	"github.com/josemanzano/stock-tracker/internal/infrastructure/marketdata/twelvedata"
-	"github.com/josemanzano/stock-tracker/internal/infrastructure/persistence/memory"
-	httpHandler "github.com/josemanzano/stock-tracker/internal/interfaces/http"
 )
 
 func main() {

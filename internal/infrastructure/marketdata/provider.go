@@ -3,7 +3,7 @@ package marketdata
 import (
 	"context"
 
-	"github.com/josemanzano/stock-tracker/internal/domain"
+	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/shopspring/decimal"
 )
 
