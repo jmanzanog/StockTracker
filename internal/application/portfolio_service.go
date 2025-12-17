@@ -9,20 +9,13 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-type PortfolioRepository interface {
-	Save(portfolio *domain.Portfolio) error
-	FindByID(id string) (*domain.Portfolio, error)
-	FindAll() ([]*domain.Portfolio, error)
-	Delete(id string) error
-}
-
 type PortfolioService struct {
-	repo             PortfolioRepository
+	repo             domain.PortfolioRepository
 	marketData       marketdata.MarketDataProvider
 	defaultPortfolio *domain.Portfolio
 }
 
-func NewPortfolioService(repo PortfolioRepository, marketData marketdata.MarketDataProvider) *PortfolioService {
+func NewPortfolioService(repo domain.PortfolioRepository, marketData marketdata.MarketDataProvider) *PortfolioService {
 	defaultPortfolio := domain.NewPortfolio("default")
 	repo.Save(&defaultPortfolio)
 

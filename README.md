@@ -10,28 +10,41 @@ A Go-based application for tracking and analyzing financial instruments (ETFs an
 - 📈 **P/L Tracking**: Calculate profit/loss for individual positions and entire portfolio
 - 🌐 **REST API**: HTTP endpoints for easy integration
 - 🏗️ **Clean Architecture**: Domain-driven design with clear separation of concerns
+- 🐳 **Docker Ready**: Full stack containerization with PostgreSQL
 
 ## Architecture
 
-The project follows **Clean Architecture** principles with the following layers:
+The project follows **Clean Architecture (DDD)** principles:
 
 ```
 stock-tracker/
 ├── cmd/tracker/              # Application entry point
 ├── internal/
-│   ├── domain/              # Business entities and logic
-│   ├── application/         # Use cases and services
-│   ├── infrastructure/      # External integrations
-│   │   ├── marketdata/     # Market data providers
-│   │   ├── persistence/    # Data repositories
-│   │   └── config/         # Configuration
-│   └── interfaces/         # HTTP handlers and routes
+│   ├── domain/              # Pure Business entities and logic
+│   ├── application/         # Use cases and orchestration
+│   ├── infrastructure/      # Adapter Implementations (PostgreSQL, TwelveData)
+│   │   ├── marketdata/      # Market data providers
+│   │   ├── persistence/     # GORM Repositories
+│   │   └── config/          # Configuration loading
+│   └── interfaces/          # HTTP Ports (Gin Handlers)
+└── docker-compose.yml       # Infrastructure orchestration
 ```
 
 ## Prerequisites
 
-- Go 1.21 or higher
-- Twelve Data API key (free tier available at [twelvedata.com](https://twelvedata.com))
+- **Go 1.22+**
+- **Docker & Docker Compose** (Recommended for full stack)
+- **PostgreSQL 15+** (Or use the Docker container provided)
+- [Twelve Data API Key](https://twelvedata.com/)
+
+## Domain Logic
+
+### Portfolio Management
+- **Automatic Position Merging**: If you add a position for an Instrument (ISIN) that is already in your portfolio, the system will automatically merge it:
+  - `Invested Amount`: Summed with existing amount.
+  - `Quantity`: Summed with existing quantity.
+  - `Current Price`: Updated to the latest market price.
+  - **No Duplicates**: A portfolio cannot have two separate entries for the same ISIN.
 
 ## Installation
 
@@ -51,39 +64,49 @@ go mod download
 cp .env.example .env
 ```
 
-4. Edit `.env` and add your Twelve Data API key:
-```
-TWELVE_DATA_API_KEY=your_api_key_here
+4. Edit `.env` and add your keys:
+```env
+TWELVE_DATA_API_KEY=your_key
+# Database config is pre-set for local docker dev
 ```
 
 ## Running the Application
 
-### Local Development
+### Option A: Docker Compose (Recommended)
+
+This starts both the PostgreSQL database and the Application in containers.
 
 ```bash
+docker compose --profile deployment up --build
+```
+- App URL: `http://localhost:8080`
+- Database: Persisted in `./postgres_data` volume.
+
+### Option B: Hybrid Mode (Local App + Docker DB)
+
+Ideal for development and debugging requiring database.
+
+1. Start only the database:
+   ```bash
+   docker compose up -d
+   ```
+2. Run the application locally:
+   ```bash
+   go run cmd/tracker/main.go
+   ```
+
+**Note**: Ensure your local `.env` has `DB_HOST=localhost` for this mode.
+
+### Option C: Pure Local
+
+Requires a local PostgreSQL instance running.
+
+```bash
+export DB_DSN="host=localhost user=postgres password=... dbname=stocktracker"
 go run cmd/tracker/main.go
 ```
 
-The server will start on `http://localhost:8080`
-
-### Using Docker
-
-Build the image:
-```bash
-docker build -t stock-tracker .
-```
-
-Run the container:
-```bash
-docker run -p 8080:8080 --env-file .env stock-tracker
-```
-
 ## API Endpoints
-
-### Health Check
-```http
-GET /health
-```
 
 ### Add Position
 ```http
@@ -102,31 +125,9 @@ Content-Type: application/json
 GET /api/v1/positions
 ```
 
-### Get Position Details
-```http
-GET /api/v1/positions/:id
-```
-
-### Delete Position
-```http
-DELETE /api/v1/positions/:id
-```
-
 ### Get Portfolio Summary
 ```http
 GET /api/v1/portfolio
-```
-
-Response includes:
-- Total value
-- Total invested
-- Total profit/loss
-- Total profit/loss percentage
-- All positions
-
-### Manually Refresh Prices
-```http
-POST /api/v1/portfolio/refresh
 ```
 
 ## Configuration
@@ -140,6 +141,8 @@ Environment variables (see `.env.example`):
 | `SERVER_HOST` | HTTP server host | `localhost` |
 | `PRICE_REFRESH_INTERVAL` | Auto-refresh interval | `60s` |
 | `LOG_LEVEL` | Logging level | `info` |
+| `DB_DRIVER` | Database Driver | `postgres` |
+| `DB_DSN` | Connection String | *required* |
 
 ## Testing
 
@@ -148,79 +151,5 @@ Run all tests:
 go test ./...
 ```
 
-Run tests with coverage:
-```bash
-go test -cover ./...
-```
-
-Run tests for a specific package:
-```bash
-go test ./internal/domain
-```
-
-## Example Usage
-
-### Adding a Position
-
-```bash
-curl -X POST http://localhost:8080/api/v1/positions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "isin": "US0378331005",
-    "invested_amount": "10000",
-    "currency": "USD"
-  }'
-```
-
-### Viewing Portfolio
-
-```bash
-curl http://localhost:8080/api/v1/portfolio
-```
-
-Example response:
-```json
-{
-  "id": "abc-123",
-  "name": "default",
-  "positions": [...],
-  "total_value": "12500.00",
-  "total_invested": "10000.00",
-  "total_profit_loss": "2500.00",
-  "total_profit_loss_percent": "25.00",
-  "created_at": "2025-12-11T20:00:00Z"
-}
-```
-
-## Market Data Provider
-
-The application uses **Twelve Data** API for market data:
-
-- ✅ Native ISIN support
-- ✅ Global coverage (stocks, ETFs, forex, crypto)
-- ✅ Free tier: 800 requests/day, 8 requests/minute
-- ✅ 15-minute delayed data on free plan
-
-The provider is abstracted behind the `MarketDataProvider` interface, making it easy to swap providers in the future.
-
-## Development
-
-### Project Structure
-
-- **Domain Layer**: Pure business logic, no external dependencies
-- **Application Layer**: Use case orchestration
-- **Infrastructure Layer**: External integrations (API clients, databases)
-- **Interfaces Layer**: HTTP handlers and routing
-
-### Adding a New Market Data Provider
-
-1. Implement the `MarketDataProvider` interface in `internal/infrastructure/marketdata/`
-2. Update dependency injection in `cmd/tracker/main.go`
-
 ## License
-
 MIT
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.

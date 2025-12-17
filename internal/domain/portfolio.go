@@ -9,16 +9,17 @@ import (
 )
 
 var (
-	ErrPositionNotFound     = errors.New("position not found")
-	ErrInvalidPosition      = errors.New("invalid position")
-	ErrDuplicatePosition    = errors.New("position with same ISIN already exists")
+	ErrPositionNotFound  = errors.New("position not found")
+	ErrInvalidPosition   = errors.New("invalid position")
+	ErrDuplicatePosition = errors.New("position with same ISIN already exists")
 )
 
 type Portfolio struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	Positions []Position `json:"positions"`
-	CreatedAt time.Time  `json:"created_at"`
+	ID          string     `json:"id" gorm:"primaryKey"`
+	Name        string     `json:"name"`
+	Positions   []Position `json:"positions"`
+	LastUpdated time.Time  `json:"last_updated"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
 
 func NewPortfolio(name string) Portfolio {
@@ -35,9 +36,15 @@ func (p *Portfolio) AddPosition(pos Position) error {
 		return ErrInvalidPosition
 	}
 
-	for _, existing := range p.Positions {
-		if existing.Instrument.ISIN == pos.Instrument.ISIN {
-			return ErrDuplicatePosition
+	for i, existing := range p.Positions {
+		if existing.ID == pos.ID || (existing.Instrument.ISIN == pos.Instrument.ISIN && existing.Instrument.ISIN != "") {
+			// Merge Logic: Update existing position
+			p.Positions[i].InvestedAmount = p.Positions[i].InvestedAmount.Add(pos.InvestedAmount)
+			p.Positions[i].Quantity = p.Positions[i].Quantity.Add(pos.Quantity)
+			// We keep the latest price update
+			p.Positions[i].CurrentPrice = pos.CurrentPrice
+			p.Positions[i].LastUpdated = time.Now()
+			return nil
 		}
 	}
 

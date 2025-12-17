@@ -8,12 +8,14 @@ import (
 )
 
 type Position struct {
-	ID               string          `json:"id"`
-	Instrument       Instrument      `json:"instrument"`
-	InvestedAmount   decimal.Decimal `json:"invested_amount"`
+	ID               string          `json:"id" gorm:"primaryKey"`
+	PortfolioID      string          `json:"-"` // Foreign Key for GORM
+	InstrumentISIN   string          `json:"-"` // Foreign Key to Instrument table
+	Instrument       Instrument      `json:"instrument" gorm:"foreignKey:InstrumentISIN;references:ISIN"`
+	InvestedAmount   decimal.Decimal `json:"invested_amount" gorm:"type:decimal(20,8)"`
 	InvestedCurrency string          `json:"invested_currency"`
-	Quantity         decimal.Decimal `json:"quantity"`
-	CurrentPrice     decimal.Decimal `json:"current_price"`
+	Quantity         decimal.Decimal `json:"quantity" gorm:"type:decimal(20,8)"`
+	CurrentPrice     decimal.Decimal `json:"current_price" gorm:"type:decimal(20,8)"`
 	LastUpdated      time.Time       `json:"last_updated"`
 }
 
@@ -32,7 +34,7 @@ func NewPosition(instrument Instrument, investedAmount decimal.Decimal, invested
 func (p *Position) UpdatePrice(price decimal.Decimal) {
 	p.CurrentPrice = price
 	p.LastUpdated = time.Now()
-	
+
 	if !price.IsZero() && !p.InvestedAmount.IsZero() {
 		p.Quantity = p.InvestedAmount.Div(price)
 	}
@@ -57,8 +59,8 @@ func (p Position) ProfitLossPercent() decimal.Decimal {
 }
 
 func (p Position) IsValid() bool {
-	return p.ID != "" && 
-		p.Instrument.IsValid() && 
-		!p.InvestedAmount.IsZero() && 
+	return p.ID != "" &&
+		p.Instrument.IsValid() &&
+		!p.InvestedAmount.IsZero() &&
 		p.InvestedCurrency != ""
 }

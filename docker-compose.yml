@@ -1,0 +1,36 @@
+services:
+  app:
+    # Only start this service if --profile deployment is used
+    profiles: ["deployment"]
+    container_name: stock-tracker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - DB_DRIVER=postgres
+      # Connection string: host=service_name user=postgres password=... dbname=... port=5432
+      - DB_DSN=host=db user=user password=password dbname=stocktracker port=5432 sslmode=disable TimeZone=UTC
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: stock-postgres
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=stocktracker
+    ports:
+      - "5432:5432" # Optional: Expose 5432 to host if you want to inspect via DBeaver/pgAdmin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,16 +13,27 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jmanzanog/stock-tracker/internal/application"
+	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/config"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/twelvedata"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/memory"
+	persistence "github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/gorm"
 	httpHandler "github.com/jmanzanog/stock-tracker/internal/interfaces/http"
 	"github.com/joho/godotenv"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func main() {
+	// Setup Structured Logging with Source Info
+	opts := &slog.HandlerOptions{
+		AddSource: true,
+		Level:     slog.LevelDebug,
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
+	slog.SetDefault(logger)
+
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
+		slog.Warn("No .env file found, using environment variables")
 	}
 
 	cfg, err := config.Load()
@@ -30,8 +42,36 @@ func main() {
 	}
 
 	marketDataClient := twelvedata.NewClient(cfg.TwelveDataAPIKey)
-	portfolioRepo := memory.NewPortfolioRepository()
-	portfolioService := application.NewPortfolioService(portfolioRepo, marketDataClient)
+
+	// Database Setup
+	var dialector gorm.Dialector
+
+	switch cfg.DBDriver {
+	case "postgres":
+		dialector = postgres.Open(cfg.DBDSN)
+	default:
+		log.Fatalf("Unsupported database driver: %s", cfg.DBDriver)
+	}
+
+	db, err := gorm.Open(dialector, &gorm.Config{})
+	if err != nil {
+		slog.Error("failed to connect database", "error", err)
+		os.Exit(1)
+	}
+
+	// Initialize Repository
+	portfolioRepo := persistence.NewGormRepository(db)
+	if err := portfolioRepo.AutoMigrate(); err != nil {
+		slog.Error("failed to migrate database", "error", err)
+		os.Exit(1)
+	}
+
+	// For compatibility, if the interface expects domain.PortfolioRepository,
+	// NewGormRepository returns *GormRepository which implements it.
+	// Cast explicitly if needed, but Go interface satisfaction is implicit.
+	var repo domain.PortfolioRepository = portfolioRepo
+
+	portfolioService := application.NewPortfolioService(repo, marketDataClient)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -49,9 +89,10 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("Server starting on %s:%s", cfg.ServerHost, cfg.ServerPort)
+		slog.Info("Server starting", "host", cfg.ServerHost, "port", cfg.ServerPort)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			slog.Error("Failed to start server", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -59,7 +100,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
+	slog.Info("Shutting down server...")
 
 	priceUpdater.Stop()
 	cancel()
@@ -68,8 +109,9 @@ func main() {
 	defer shutdownCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		slog.Error("Server forced to shutdown", "error", err)
+		os.Exit(1)
 	}
 
-	log.Println("Server exited")
+	slog.Info("Server exited")
 }

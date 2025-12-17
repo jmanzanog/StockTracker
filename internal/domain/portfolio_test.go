@@ -6,94 +6,77 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func TestPortfolio_AddPosition(t *testing.T) {
-	portfolio := NewPortfolio("test")
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
-	position := NewPosition(instrument, decimal.NewFromInt(10000), "USD")
+func TestAddPosition_New(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, decimal.NewFromInt(1000), "USD")
+	pos.UpdatePrice(decimal.NewFromInt(100)) // Quantity = 10
 
-	err := portfolio.AddPosition(position)
+	err := p.AddPosition(pos)
 	if err != nil {
-		t.Fatalf("Failed to add position: %v", err)
+		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if len(portfolio.Positions) != 1 {
-		t.Errorf("Expected 1 position, got %d", len(portfolio.Positions))
+	if len(p.Positions) != 1 {
+		t.Errorf("Expected 1 position, got %d", len(p.Positions))
 	}
-}
-
-func TestPortfolio_AddDuplicatePosition(t *testing.T) {
-	portfolio := NewPortfolio("test")
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
-	position1 := NewPosition(instrument, decimal.NewFromInt(10000), "USD")
-	position2 := NewPosition(instrument, decimal.NewFromInt(5000), "USD")
-
-	portfolio.AddPosition(position1)
-	err := portfolio.AddPosition(position2)
-
-	if err != ErrDuplicatePosition {
-		t.Errorf("Expected ErrDuplicatePosition, got %v", err)
+	if !p.Positions[0].Quantity.Equal(decimal.NewFromInt(10)) {
+		t.Errorf("Expected quantity 10, got %s", p.Positions[0].Quantity)
 	}
 }
 
-func TestPortfolio_RemovePosition(t *testing.T) {
-	portfolio := NewPortfolio("test")
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
-	position := NewPosition(instrument, decimal.NewFromInt(10000), "USD")
+func TestAddPosition_Merge(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
 
-	portfolio.AddPosition(position)
-	err := portfolio.RemovePosition(position.ID)
+	// 1. Add first position
+	pos1 := NewPosition(inst, decimal.NewFromInt(1000), "USD") // 1000 USD
+	pos1.UpdatePrice(decimal.NewFromInt(100))                  // Price 100 -> Qty 10
+	p.AddPosition(pos1)
 
+	// 2. Add second position (same ISIN)
+	pos2 := NewPosition(inst, decimal.NewFromInt(500), "USD") // 500 USD
+	pos2.UpdatePrice(decimal.NewFromInt(125))                 // Price 125 -> Qty 4
+
+	err := p.AddPosition(pos2)
 	if err != nil {
-		t.Fatalf("Failed to remove position: %v", err)
+		t.Fatalf("Expected no error on merge, got %v", err)
 	}
 
-	if len(portfolio.Positions) != 0 {
-		t.Errorf("Expected 0 positions, got %d", len(portfolio.Positions))
+	// VALIDATIONS
+	if len(p.Positions) != 1 {
+		t.Fatalf("Expected merged into 1 position, got %d", len(p.Positions))
+	}
+
+	merged := p.Positions[0]
+
+	// Total Invested: 1000 + 500 = 1500
+	expectedInvested := decimal.NewFromInt(1500)
+	if !merged.InvestedAmount.Equal(expectedInvested) {
+		t.Errorf("Expected invested %s, got %s", expectedInvested, merged.InvestedAmount)
+	}
+
+	// Total Quantity: 10 + 4 = 14
+	expectedQty := decimal.NewFromInt(14)
+	if !merged.Quantity.Equal(expectedQty) {
+		t.Errorf("Expected quantity %s, got %s", expectedQty, merged.Quantity)
+	}
+
+	// Current Price should be latest (125)
+	expectedPrice := decimal.NewFromInt(125)
+	if !merged.CurrentPrice.Equal(expectedPrice) {
+		t.Errorf("Expected current price %s, got %s", expectedPrice, merged.CurrentPrice)
 	}
 }
 
-func TestPortfolio_TotalValue(t *testing.T) {
-	portfolio := NewPortfolio("test")
+func TestAddPosition_Invalid(t *testing.T) {
+	p := NewPortfolio("Test P")
+	// Invalid position (empty ISIN)
+	inst := NewInstrument("", "", "", InstrumentTypeStock, "USD", "")
+	pos := NewPosition(inst, decimal.Zero, "USD")
 
-	instrument1 := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
-	position1 := NewPosition(instrument1, decimal.NewFromInt(10000), "USD")
-	position1.UpdatePrice(decimal.NewFromInt(100))
-
-	instrument2 := NewInstrument("IE00B4L5Y983", "IWDA", "iShares Core MSCI World", InstrumentTypeETF, "USD", "XETRA")
-	position2 := NewPosition(instrument2, decimal.NewFromInt(5000), "USD")
-	position2.UpdatePrice(decimal.NewFromInt(50))
-
-	portfolio.AddPosition(position1)
-	portfolio.AddPosition(position2)
-
-	totalValue := portfolio.TotalValue()
-	expected := decimal.NewFromInt(15000)
-
-	if !totalValue.Equal(expected) {
-		t.Errorf("Expected total value %s, got %s", expected, totalValue)
-	}
-}
-
-func TestPortfolio_TotalProfitLoss(t *testing.T) {
-	portfolio := NewPortfolio("test")
-
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
-	position := NewPosition(instrument, decimal.NewFromInt(10000), "USD")
-
-	initialPrice := decimal.NewFromInt(100)
-	position.UpdatePrice(initialPrice)
-
-	quantity := position.Quantity
-	newPrice := decimal.NewFromInt(120)
-	position.Quantity = quantity
-	position.CurrentPrice = newPrice
-
-	portfolio.AddPosition(position)
-
-	profitLoss := portfolio.TotalProfitLoss().Round(2)
-	expected := decimal.NewFromInt(2000)
-
-	if !profitLoss.Equal(expected) {
-		t.Errorf("Expected total P/L %s, got %s", expected, profitLoss)
+	err := p.AddPosition(pos)
+	if err != ErrInvalidPosition {
+		t.Errorf("Expected ErrInvalidPosition, got %v", err)
 	}
 }

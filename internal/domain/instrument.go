@@ -8,7 +8,7 @@ const (
 )
 
 type Instrument struct {
-	ISIN     string         `json:"isin"`
+	ISIN     string         `json:"isin" gorm:"primaryKey"`
 	Symbol   string         `json:"symbol"`
 	Name     string         `json:"name"`
 	Type     InstrumentType `json:"type"`

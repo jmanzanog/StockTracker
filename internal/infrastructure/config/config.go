@@ -12,6 +12,8 @@ type Config struct {
 	ServerHost           string
 	PriceRefreshInterval time.Duration
 	LogLevel             string
+	DBDriver             string
+	DBDSN                string
 }
 
 func Load() (*Config, error) {
@@ -29,12 +31,21 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid PRICE_REFRESH_INTERVAL: %w", err)
 	}
 
+	dbDriver := getEnvOrDefault("DB_DRIVER", "postgres")
+
+	dbDSN := os.Getenv("DB_DSN")
+	if dbDSN == "" {
+		return nil, fmt.Errorf("DB_DSN environment variable is required")
+	}
+
 	return &Config{
 		TwelveDataAPIKey:     apiKey,
 		ServerPort:           port,
 		ServerHost:           host,
 		PriceRefreshInterval: refreshInterval,
 		LogLevel:             logLevel,
+		DBDriver:             dbDriver,
+		DBDSN:                dbDSN,
 	}, nil
 }
 
