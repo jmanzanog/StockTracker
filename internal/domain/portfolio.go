@@ -17,7 +17,7 @@ var (
 type Portfolio struct {
 	ID          string     `json:"id" gorm:"primaryKey"`
 	Name        string     `json:"name"`
-	Positions   []Position `json:"positions"`
+	Positions   []Position `json:"positions" gorm:"foreignKey:PortfolioID"`
 	LastUpdated time.Time  `json:"last_updated"`
 	CreatedAt   time.Time  `json:"created_at"`
 }
@@ -80,7 +80,7 @@ func (p *Portfolio) UpdatePositionPrice(id string, price decimal.Decimal) error 
 	return nil
 }
 
-func (p Portfolio) TotalValue() decimal.Decimal {
+func (p *Portfolio) TotalValue() decimal.Decimal {
 	total := decimal.Zero
 	for _, pos := range p.Positions {
 		total = total.Add(pos.CurrentValue())
@@ -88,7 +88,7 @@ func (p Portfolio) TotalValue() decimal.Decimal {
 	return total
 }
 
-func (p Portfolio) TotalInvested() decimal.Decimal {
+func (p *Portfolio) TotalInvested() decimal.Decimal {
 	total := decimal.Zero
 	for _, pos := range p.Positions {
 		total = total.Add(pos.InvestedAmount)
@@ -96,11 +96,11 @@ func (p Portfolio) TotalInvested() decimal.Decimal {
 	return total
 }
 
-func (p Portfolio) TotalProfitLoss() decimal.Decimal {
+func (p *Portfolio) TotalProfitLoss() decimal.Decimal {
 	return p.TotalValue().Sub(p.TotalInvested())
 }
 
-func (p Portfolio) TotalProfitLossPercent() decimal.Decimal {
+func (p *Portfolio) TotalProfitLossPercent() decimal.Decimal {
 	invested := p.TotalInvested()
 	if invested.IsZero() {
 		return decimal.Zero

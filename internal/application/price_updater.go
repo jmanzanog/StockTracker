@@ -2,17 +2,21 @@ package application
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 )
 
+type PriceRefresher interface {
+	RefreshPrices(ctx context.Context) error
+}
+
 type PriceUpdater struct {
-	service  *PortfolioService
+	service  PriceRefresher
 	interval time.Duration
 	stopChan chan struct{}
 }
 
-func NewPriceUpdater(service *PortfolioService, interval time.Duration) *PriceUpdater {
+func NewPriceUpdater(service PriceRefresher, interval time.Duration) *PriceUpdater {
 	return &PriceUpdater{
 		service:  service,
 		interval: interval,
@@ -24,21 +28,21 @@ func (u *PriceUpdater) Start(ctx context.Context) {
 	ticker := time.NewTicker(u.interval)
 	defer ticker.Stop()
 
-	log.Printf("Price updater started with interval: %s", u.interval)
+	slog.Info("Price updater started", "interval", u.interval)
 
 	for {
 		select {
 		case <-ticker.C:
 			if err := u.service.RefreshPrices(ctx); err != nil {
-				log.Printf("Error refreshing prices: %v", err)
+				slog.Error("Error refreshing prices", "error", err)
 			} else {
-				log.Println("Prices refreshed successfully")
+				slog.Info("Prices refreshed successfully")
 			}
 		case <-u.stopChan:
-			log.Println("Price updater stopped")
+			slog.Info("Price updater stopped")
 			return
 		case <-ctx.Done():
-			log.Println("Price updater stopped due to context cancellation")
+			slog.Info("Price updater stopped due to context cancellation")
 			return
 		}
 	}

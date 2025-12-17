@@ -40,25 +40,25 @@ func (p *Position) UpdatePrice(price decimal.Decimal) {
 	}
 }
 
-func (p Position) CurrentValue() decimal.Decimal {
+func (p *Position) CurrentValue() decimal.Decimal {
 	if p.CurrentPrice.IsZero() {
 		return decimal.Zero
 	}
 	return p.Quantity.Mul(p.CurrentPrice)
 }
 
-func (p Position) ProfitLoss() decimal.Decimal {
+func (p *Position) ProfitLoss() decimal.Decimal {
 	return p.CurrentValue().Sub(p.InvestedAmount)
 }
 
-func (p Position) ProfitLossPercent() decimal.Decimal {
+func (p *Position) ProfitLossPercent() decimal.Decimal {
 	if p.InvestedAmount.IsZero() {
 		return decimal.Zero
 	}
 	return p.ProfitLoss().Div(p.InvestedAmount).Mul(decimal.NewFromInt(100))
 }
 
-func (p Position) IsValid() bool {
+func (p *Position) IsValid() bool {
 	return p.ID != "" &&
 		p.Instrument.IsValid() &&
 		!p.InvestedAmount.IsZero() &&

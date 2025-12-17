@@ -146,6 +146,8 @@ Environment variables (see `.env.example`):
 
 ## Testing
 
+> **Note**: These tests utilize **Testcontainers**, so you must have **Docker** installed and running on your machine to execute them successfully.
+
 Run all tests:
 ```bash
 go test ./...

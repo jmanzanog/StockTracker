@@ -1,40 +1,72 @@
 package persistence
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/glebarez/sqlite"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
+	postgresDriver "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-func setupTestDB() (*gorm.DB, error) {
-	// Use in-memory SQLite for testing
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
-		// Silence logger for cleaner test output
+func setupTestDB(t *testing.T) *gorm.DB {
+	ctx := context.Background()
+
+	pgContainer, err := postgres.Run(ctx,
+		"postgres:16-alpine",
+		postgres.WithDatabase("testdb"),
+		postgres.WithUsername("user"),
+		postgres.WithPassword("password"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(5*time.Second),
+		),
+	)
+	if err != nil {
+		t.Fatalf("failed to start postgres container: %s", err)
+	}
+
+	t.Cleanup(func() {
+		if err := pgContainer.Terminate(ctx); err != nil {
+			t.Fatalf("failed to terminate container: %s", err)
+		}
+	})
+
+	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		t.Fatalf("failed to get connection string: %s", err)
+	}
+
+	db, err := gorm.Open(postgresDriver.Open(connStr), &gorm.Config{
 		Logger: nil,
 	})
 	if err != nil {
-		return nil, err
+		t.Fatalf("failed to connect to database: %s", err)
 	}
-	return db, nil
+
+	return db
 }
 
 func TestGormRepository_SaveAndFind(t *testing.T) {
 	// 1. Setup
-	db, err := setupTestDB()
-	assert.NoError(t, err)
+	db := setupTestDB(t)
 
 	repo := NewGormRepository(db)
-	err = repo.AutoMigrate()
+	err := repo.AutoMigrate()
 	assert.NoError(t, err)
 
 	// 2. Create Portfolio
 	p := domain.NewPortfolio("My Test Portfolio")
+	err = repo.Save(&p)
+	assert.NoError(t, err)
 
 	// Add a position
 	inst := domain.NewInstrument("US123", "TEST", "Test Corp", domain.InstrumentTypeStock, "USD", "NYSE")
@@ -44,7 +76,7 @@ func TestGormRepository_SaveAndFind(t *testing.T) {
 	err = p.AddPosition(pos)
 	assert.NoError(t, err)
 
-	// 3. Save
+	// 3. Save (Update with new position)
 	err = repo.Save(&p)
 	assert.NoError(t, err)
 
@@ -59,10 +91,10 @@ func TestGormRepository_SaveAndFind(t *testing.T) {
 
 func TestGormRepository_Save_Update(t *testing.T) {
 	// Validate "Upsert" logic
-	db, err := setupTestDB()
-	assert.NoError(t, err)
+	db := setupTestDB(t)
 	repo := NewGormRepository(db)
-	repo.AutoMigrate()
+	err := repo.AutoMigrate()
+	assert.NoError(t, err)
 	slog.SetDefault(slog.Default()) // Ensure logger exists
 
 	p := domain.NewPortfolio("Updates")
@@ -81,7 +113,7 @@ func TestGormRepository_Save_Update(t *testing.T) {
 }
 
 func TestGormRepository_NotFound(t *testing.T) {
-	db, _ := setupTestDB()
+	db := setupTestDB(t)
 	repo := NewGormRepository(db)
 	repo.AutoMigrate()
 
