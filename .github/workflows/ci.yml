@@ -54,7 +54,7 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.61.0
-          install-mode: go
+          install-mode: source
           args: --timeout=5m --tests=false
 
       - name: Test (race + coverage)
