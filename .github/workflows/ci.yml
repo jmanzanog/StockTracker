@@ -54,7 +54,8 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.61.0
-          args: --timeout=5m --tests=false --go=1.23
+          install-mode: go
+          args: --timeout=5m --tests=false
 
       - name: Test (race + coverage)
         run: go test ./... -race -coverprofile=coverage.out -covermode=atomic
