@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.24.1"
+  GO_VERSION: "1.25.5"
 
 jobs:
   lint-test:
@@ -50,7 +50,7 @@ jobs:
       - name: Lint (go vet)
         run: go vet ./...
 
-      - name: Lint (golangci-lint)
+      - name: Lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.61.0
