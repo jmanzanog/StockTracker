@@ -98,7 +98,7 @@ func TestGormRepository_Save_Update(t *testing.T) {
 	slog.SetDefault(slog.Default()) // Ensure logger exists
 
 	p := domain.NewPortfolio("Updates")
-	repo.Save(&p)
+	_ = repo.Save(&p) // Initial save for test setup
 
 	// Modify
 	p.Name = "Updated Name"
@@ -115,7 +115,7 @@ func TestGormRepository_Save_Update(t *testing.T) {
 func TestGormRepository_NotFound(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewGormRepository(db)
-	repo.AutoMigrate()
+	_ = repo.AutoMigrate() // Migration error not relevant to this test
 
 	_, err := repo.FindByID("non-existent-id")
 	assert.Error(t, err)
