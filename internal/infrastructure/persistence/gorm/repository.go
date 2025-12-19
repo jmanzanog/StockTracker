@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,12 +29,12 @@ func (r *GormRepository) AutoMigrate() error {
 	return r.db.AutoMigrate(&domain.Portfolio{}, &domain.Position{}, &domain.Instrument{})
 }
 
-func (r *GormRepository) Save(portfolio *domain.Portfolio) error {
+func (r *GormRepository) Save(ctx context.Context, portfolio *domain.Portfolio) error {
 	// GORM's Save updates if ID exists, creates if not.
 	// We use session with FullSaveAssociations to ensure positions are updated naturally.
 	// We use OnConflict clause to handle cases where nested entities (like Instruments or Positions) already exist
 	// UpdateAll: true ensures that if it exists, it updates it.
-	if err := r.db.Session(&gorm.Session{FullSaveAssociations: true}).
+	if err := r.db.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).
 		Clauses(clause.OnConflict{UpdateAll: true}).
 		Save(portfolio).Error; err != nil {
 		slog.Error("Failed to save portfolio", "portfolio_id", portfolio.ID, "error", err)
@@ -42,10 +43,10 @@ func (r *GormRepository) Save(portfolio *domain.Portfolio) error {
 	return nil
 }
 
-func (r *GormRepository) FindByID(id string) (*domain.Portfolio, error) {
+func (r *GormRepository) FindByID(ctx context.Context, id string) (*domain.Portfolio, error) {
 	var portfolio domain.Portfolio
 	// Preload loads the related positions automatically (Like Eager Loading in Hibernate)
-	if err := r.db.Preload("Positions").Preload("Positions.Instrument").First(&portfolio, "id = ?", id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("Positions").Preload("Positions.Instrument").First(&portfolio, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Debug("Portfolio not found", "id", id)
 			return nil, fmt.Errorf("portfolio not found: %w", err)
@@ -56,16 +57,16 @@ func (r *GormRepository) FindByID(id string) (*domain.Portfolio, error) {
 	return &portfolio, nil
 }
 
-func (r *GormRepository) FindAll() ([]*domain.Portfolio, error) {
+func (r *GormRepository) FindAll(ctx context.Context) ([]*domain.Portfolio, error) {
 	var portfolios []*domain.Portfolio
-	if err := r.db.Preload("Positions").Preload("Positions.Instrument").Find(&portfolios).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("Positions").Preload("Positions.Instrument").Find(&portfolios).Error; err != nil {
 		return nil, err
 	}
 	return portfolios, nil
 }
 
-func (r *GormRepository) Delete(id string) error {
-	if err := r.db.Delete(&domain.Portfolio{}, "id = ?", id).Error; err != nil {
+func (r *GormRepository) Delete(ctx context.Context, id string) error {
+	if err := r.db.WithContext(ctx).Delete(&domain.Portfolio{}, "id = ?", id).Error; err != nil {
 		return err
 	}
 	return nil

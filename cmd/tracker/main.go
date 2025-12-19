@@ -71,7 +71,12 @@ func main() {
 	// Cast explicitly if needed, but Go interface satisfaction is implicit.
 	var repo domain.PortfolioRepository = portfolioRepo
 
-	portfolioService := application.NewPortfolioService(repo, marketDataClient)
+	portfolioService, err := application.NewPortfolioService(repo, marketDataClient)
+
+	if err != nil {
+		slog.Error("failed to create portfolio service", "error", err)
+		os.Exit(1)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

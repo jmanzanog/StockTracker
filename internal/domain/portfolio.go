@@ -5,13 +5,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 )
 
 var (
-	ErrPositionNotFound  = errors.New("position not found")
-	ErrInvalidPosition   = errors.New("invalid position")
-	ErrDuplicatePosition = errors.New("position with same ISIN already exists")
+	ErrPositionNotFound = errors.New("position not found")
+	ErrInvalidPosition  = errors.New("invalid position")
 )
 
 type Portfolio struct {
@@ -71,7 +69,7 @@ func (p *Portfolio) GetPosition(id string) (*Position, error) {
 	return nil, ErrPositionNotFound
 }
 
-func (p *Portfolio) UpdatePositionPrice(id string, price decimal.Decimal) error {
+func (p *Portfolio) UpdatePositionPrice(id string, price Decimal) error {
 	pos, err := p.GetPosition(id)
 	if err != nil {
 		return err
@@ -80,30 +78,30 @@ func (p *Portfolio) UpdatePositionPrice(id string, price decimal.Decimal) error 
 	return nil
 }
 
-func (p *Portfolio) TotalValue() decimal.Decimal {
-	total := decimal.Zero
+func (p *Portfolio) TotalValue() Decimal {
+	total := Zero
 	for _, pos := range p.Positions {
 		total = total.Add(pos.CurrentValue())
 	}
 	return total
 }
 
-func (p *Portfolio) TotalInvested() decimal.Decimal {
-	total := decimal.Zero
+func (p *Portfolio) TotalInvested() Decimal {
+	total := Zero
 	for _, pos := range p.Positions {
 		total = total.Add(pos.InvestedAmount)
 	}
 	return total
 }
 
-func (p *Portfolio) TotalProfitLoss() decimal.Decimal {
+func (p *Portfolio) TotalProfitLoss() Decimal {
 	return p.TotalValue().Sub(p.TotalInvested())
 }
 
-func (p *Portfolio) TotalProfitLossPercent() decimal.Decimal {
+func (p *Portfolio) TotalProfitLossPercent() Decimal {
 	invested := p.TotalInvested()
 	if invested.IsZero() {
-		return decimal.Zero
+		return Zero
 	}
-	return p.TotalProfitLoss().Div(invested).Mul(decimal.NewFromInt(100))
+	return p.TotalProfitLoss().Div(invested).Mul(NewDecimalFromInt(100))
 }

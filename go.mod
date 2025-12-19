@@ -3,10 +3,10 @@ module github.com/jmanzanog/stock-tracker
 go 1.25.5
 
 require (
+	github.com/cockroachdb/apd/v3 v3.2.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
-	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0

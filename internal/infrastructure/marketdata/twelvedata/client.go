@@ -12,7 +12,6 @@ import (
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
-	"github.com/shopspring/decimal"
 )
 
 const (
@@ -75,6 +74,7 @@ func (c *Client) SearchByISIN(ctx context.Context, isin string) (*domain.Instrum
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
+
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
 			slog.Warn("failed to close response body", "error", closeErr, "url", reqURL)
@@ -153,7 +153,7 @@ func (c *Client) GetQuote(ctx context.Context, symbol string) (*marketdata.Quote
 		return nil, fmt.Errorf("quote request returned no price data for symbol: %s", symbol)
 	}
 
-	price, err := decimal.NewFromString(quoteResp.Close)
+	price, err := domain.NewDecimalFromString(quoteResp.Close)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse price: %w", err)
 	}

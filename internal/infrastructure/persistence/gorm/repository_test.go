@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -65,23 +64,24 @@ func TestGormRepository_SaveAndFind(t *testing.T) {
 
 	// 2. Create Portfolio
 	p := domain.NewPortfolio("My Test Portfolio")
-	err = repo.Save(&p)
+	ctx := context.Background()
+	err = repo.Save(ctx, &p)
 	assert.NoError(t, err)
 
 	// Add a position
 	inst := domain.NewInstrument("US123", "TEST", "Test Corp", domain.InstrumentTypeStock, "USD", "NYSE")
-	pos := domain.NewPosition(inst, decimal.NewFromInt(100), "USD")
-	pos.UpdatePrice(decimal.NewFromInt(10))
+	pos := domain.NewPosition(inst, domain.NewDecimalFromInt(100), "USD")
+	pos.UpdatePrice(domain.NewDecimalFromInt(10))
 
 	err = p.AddPosition(pos)
 	assert.NoError(t, err)
 
 	// 3. Save (Update with new position)
-	err = repo.Save(&p)
+	err = repo.Save(ctx, &p)
 	assert.NoError(t, err)
 
 	// 4. Find
-	found, err := repo.FindByID(p.ID)
+	found, err := repo.FindByID(ctx, p.ID)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
 	assert.Equal(t, p.ID, found.ID)
@@ -98,26 +98,34 @@ func TestGormRepository_Save_Update(t *testing.T) {
 	slog.SetDefault(slog.Default()) // Ensure logger exists
 
 	p := domain.NewPortfolio("Updates")
-	_ = repo.Save(&p) // Initial save for test setup
+	ctx := context.Background()
+	err = repo.Save(ctx, &p)
+	if err != nil {
+		t.Fatalf("Error %v", err)
+	}
 
 	// Modify
 	p.Name = "Updated Name"
 	p.LastUpdated = time.Now()
 
 	// Save again
-	err = repo.Save(&p)
+	err = repo.Save(ctx, &p)
 	assert.NoError(t, err)
 
-	found, _ := repo.FindByID(p.ID)
+	found, _ := repo.FindByID(ctx, p.ID)
 	assert.Equal(t, "Updated Name", found.Name)
 }
 
 func TestGormRepository_NotFound(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewGormRepository(db)
-	_ = repo.AutoMigrate() // Migration error not relevant to this test
+	err := repo.AutoMigrate()
+	if err != nil {
+		t.Fatalf("Error %v", err)
+	}
 
-	_, err := repo.FindByID("non-existent-id")
+	ctx := context.Background()
+	_, err = repo.FindByID(ctx, "non-existent-id")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "portfolio not found")
 }

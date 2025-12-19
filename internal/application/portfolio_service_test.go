@@ -6,7 +6,6 @@ import (
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
-	"github.com/shopspring/decimal"
 )
 
 // --- Mocks ---
@@ -15,26 +14,26 @@ type MockRepository struct {
 	portfolio *domain.Portfolio
 }
 
-func (m *MockRepository) Save(p *domain.Portfolio) error {
+func (m *MockRepository) Save(ctx context.Context, p *domain.Portfolio) error {
 	m.portfolio = p
 	return nil
 }
 
-func (m *MockRepository) FindByID(id string) (*domain.Portfolio, error) {
+func (m *MockRepository) FindByID(ctx context.Context, id string) (*domain.Portfolio, error) {
 	return m.portfolio, nil
 }
 
-func (m *MockRepository) FindAll() ([]*domain.Portfolio, error) {
+func (m *MockRepository) FindAll(ctx context.Context) ([]*domain.Portfolio, error) {
 	return []*domain.Portfolio{m.portfolio}, nil
 }
 
-func (m *MockRepository) Delete(id string) error {
+func (m *MockRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
 type MockMarketData struct{}
 
-func (m *MockMarketData) SearchByISIN(ctx context.Context, isin string) (*domain.Instrument, error) {
+func (m *MockMarketData) SearchByISIN(_ context.Context, isin string) (*domain.Instrument, error) {
 	inst := domain.NewInstrument(
 		isin,
 		"TESTSYM",
@@ -46,10 +45,10 @@ func (m *MockMarketData) SearchByISIN(ctx context.Context, isin string) (*domain
 	return &inst, nil
 }
 
-func (m *MockMarketData) GetQuote(ctx context.Context, symbol string) (*marketdata.QuoteResult, error) {
+func (m *MockMarketData) GetQuote(_ context.Context, symbol string) (*marketdata.QuoteResult, error) {
 	return &marketdata.QuoteResult{
 		Symbol:   symbol,
-		Price:    decimal.NewFromInt(150),
+		Price:    domain.NewDecimalFromInt(150),
 		Currency: "USD",
 		Time:     "2023-01-01",
 	}, nil
@@ -61,12 +60,15 @@ func TestAddAndListPosition(t *testing.T) {
 	// 1. Setup
 	repo := &MockRepository{}
 	marketData := &MockMarketData{}
-	service := NewPortfolioService(repo, marketData)
+	service, err := NewPortfolioService(repo, marketData)
+	if err != nil {
+		t.Fatalf("NewPortfolioService failed: %v", err)
+	}
 	ctx := context.Background()
 
 	// 2. Action: Add Position
 	isin := "US0000000001"
-	amount := decimal.NewFromInt(1000)
+	amount := domain.NewDecimalFromInt(1000)
 	currency := "USD"
 
 	addedPos, err := service.AddPosition(ctx, isin, amount, currency)
@@ -78,7 +80,7 @@ func TestAddAndListPosition(t *testing.T) {
 	if addedPos.Instrument.ISIN != isin {
 		t.Errorf("Expected ISIN %s, got %s", isin, addedPos.Instrument.ISIN)
 	}
-	if !addedPos.CurrentPrice.Equal(decimal.NewFromInt(150)) {
+	if !addedPos.CurrentPrice.Equal(domain.NewDecimalFromInt(150)) {
 		t.Errorf("Expected price 150, got %s", addedPos.CurrentPrice)
 	}
 

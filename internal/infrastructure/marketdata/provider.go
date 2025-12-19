@@ -4,12 +4,11 @@ import (
 	"context"
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
-	"github.com/shopspring/decimal"
 )
 
 type QuoteResult struct {
 	Symbol   string
-	Price    decimal.Decimal
+	Price    domain.Decimal
 	Currency string
 	Time     string
 }

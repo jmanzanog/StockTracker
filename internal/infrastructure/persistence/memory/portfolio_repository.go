@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -20,7 +21,7 @@ func NewPortfolioRepository() *PortfolioRepository {
 	}
 }
 
-func (r *PortfolioRepository) Save(portfolio *domain.Portfolio) error {
+func (r *PortfolioRepository) Save(ctx context.Context, portfolio *domain.Portfolio) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -28,7 +29,7 @@ func (r *PortfolioRepository) Save(portfolio *domain.Portfolio) error {
 	return nil
 }
 
-func (r *PortfolioRepository) FindByID(id string) (*domain.Portfolio, error) {
+func (r *PortfolioRepository) FindByID(ctx context.Context, id string) (*domain.Portfolio, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -40,7 +41,7 @@ func (r *PortfolioRepository) FindByID(id string) (*domain.Portfolio, error) {
 	return portfolio, nil
 }
 
-func (r *PortfolioRepository) FindAll() ([]*domain.Portfolio, error) {
+func (r *PortfolioRepository) FindAll(ctx context.Context) ([]*domain.Portfolio, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -52,7 +53,7 @@ func (r *PortfolioRepository) FindAll() ([]*domain.Portfolio, error) {
 	return portfolios, nil
 }
 
-func (r *PortfolioRepository) Delete(id string) error {
+func (r *PortfolioRepository) Delete(ctx context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

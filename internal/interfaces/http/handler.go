@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jmanzanog/stock-tracker/internal/application"
-	"github.com/shopspring/decimal"
+	"github.com/jmanzanog/stock-tracker/internal/domain"
 )
 
 type Handler struct {
@@ -19,9 +19,9 @@ func NewHandler(portfolioService *application.PortfolioService) *Handler {
 }
 
 type AddPositionRequest struct {
-	ISIN           string          `json:"isin" binding:"required"`
-	InvestedAmount decimal.Decimal `json:"invested_amount" binding:"required"`
-	Currency       string          `json:"currency" binding:"required"`
+	ISIN           string         `json:"isin" binding:"required"`
+	InvestedAmount domain.Decimal `json:"invested_amount" binding:"required"`
+	Currency       string         `json:"currency" binding:"required"`
 }
 
 type ErrorResponse struct {

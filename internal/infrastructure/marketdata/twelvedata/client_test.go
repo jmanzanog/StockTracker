@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
-	"github.com/shopspring/decimal"
 )
 
 func TestSearchByISIN(t *testing.T) {
@@ -77,7 +76,11 @@ func TestSearchByISIN(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(tt.mockResponse))
+				_, err := w.Write([]byte(tt.mockResponse))
+				if err != nil {
+					t.Errorf("Error writing response: %v", err)
+
+				}
 			}))
 			defer server.Close()
 
@@ -169,7 +172,10 @@ func TestGetQuote(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(tt.mockResponse))
+				_, err := w.Write([]byte(tt.mockResponse))
+				if err != nil {
+					t.Errorf("Error Write %v", err)
+				}
 			}))
 			defer server.Close()
 
@@ -190,7 +196,7 @@ func TestGetQuote(t *testing.T) {
 				return
 			}
 
-			expectedDecimal, _ := decimal.NewFromString(tt.expectedPrice)
+			expectedDecimal, _ := domain.NewDecimalFromString(tt.expectedPrice)
 			if !result.Price.Equal(expectedDecimal) {
 				t.Errorf("Expected price %s, got %s", tt.expectedPrice, result.Price)
 			}

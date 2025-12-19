@@ -6,7 +6,6 @@ import (
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
-	"github.com/shopspring/decimal"
 )
 
 type PortfolioService struct {
@@ -15,19 +14,21 @@ type PortfolioService struct {
 	defaultPortfolio *domain.Portfolio
 }
 
-func NewPortfolioService(repo domain.PortfolioRepository, marketData marketdata.MarketDataProvider) *PortfolioService {
+func NewPortfolioService(repo domain.PortfolioRepository, marketData marketdata.MarketDataProvider) (*PortfolioService, error) {
 	defaultPortfolio := domain.NewPortfolio("default")
-	// Attempt to save default portfolio; if it fails, it will be saved on first operation
-	_ = repo.Save(&defaultPortfolio)
+	// Use background context for initialization since there's no request context yet
+	if err := repo.Save(context.Background(), &defaultPortfolio); err != nil {
+		return nil, fmt.Errorf("failed to save default portfolio: %w", err)
+	}
 
 	return &PortfolioService{
 		repo:             repo,
 		marketData:       marketData,
 		defaultPortfolio: &defaultPortfolio,
-	}
+	}, nil
 }
 
-func (s *PortfolioService) AddPosition(ctx context.Context, isin string, investedAmount decimal.Decimal, currency string) (*domain.Position, error) {
+func (s *PortfolioService) AddPosition(ctx context.Context, isin string, investedAmount domain.Decimal, currency string) (*domain.Position, error) {
 	instrument, err := s.marketData.SearchByISIN(ctx, isin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find instrument: %w", err)
@@ -40,13 +41,19 @@ func (s *PortfolioService) AddPosition(ctx context.Context, isin string, investe
 		return nil, fmt.Errorf("failed to get quote: %w", err)
 	}
 
-	position.UpdatePrice(quote.Price)
+	// Convert shopspring decimal (from marketdata) to domain decimal
+	price, err := domain.NewDecimalFromString(quote.Price.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse quote price: %w", err)
+	}
+
+	position.UpdatePrice(price)
 
 	if err := s.defaultPortfolio.AddPosition(position); err != nil {
 		return nil, fmt.Errorf("failed to add position: %w", err)
 	}
 
-	if err := s.repo.Save(s.defaultPortfolio); err != nil {
+	if err := s.repo.Save(ctx, s.defaultPortfolio); err != nil {
 		return nil, fmt.Errorf("failed to save portfolio: %w", err)
 	}
 
@@ -58,7 +65,7 @@ func (s *PortfolioService) RemovePosition(ctx context.Context, positionID string
 		return fmt.Errorf("failed to remove position: %w", err)
 	}
 
-	if err := s.repo.Save(s.defaultPortfolio); err != nil {
+	if err := s.repo.Save(ctx, s.defaultPortfolio); err != nil {
 		return fmt.Errorf("failed to save portfolio: %w", err)
 	}
 
@@ -90,10 +97,15 @@ func (s *PortfolioService) RefreshPrices(ctx context.Context) error {
 			return fmt.Errorf("failed to get quote for %s: %w", pos.Instrument.Symbol, err)
 		}
 
-		pos.UpdatePrice(quote.Price)
+		price, err := domain.NewDecimalFromString(quote.Price.String())
+		if err != nil {
+			return fmt.Errorf("failed to parse quote price for %s: %w", pos.Instrument.Symbol, err)
+		}
+
+		pos.UpdatePrice(price)
 	}
 
-	if err := s.repo.Save(s.defaultPortfolio); err != nil {
+	if err := s.repo.Save(ctx, s.defaultPortfolio); err != nil {
 		return fmt.Errorf("failed to save portfolio: %w", err)
 	}
 
