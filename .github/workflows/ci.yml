@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.25.5"
+  GO_VERSION: "1.23"
 
 jobs:
   lint-test:
@@ -35,6 +35,11 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Verify dependencies
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
       - name: Check formatting (gofmt)
         run: |
           fmt_out=$(gofmt -l .)
@@ -50,12 +55,12 @@ jobs:
       - name: Lint (go vet)
         run: go vet ./...
 
-      - name: Lint
+      - name: Lint (golangci-lint)
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.61.0
           install-mode: source
-          args: --timeout=5m --tests=false
+          args: --timeout=5m
 
       - name: Test (race + coverage)
         run: go test ./... -race -coverprofile=coverage.out -covermode=atomic
