@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,15 +13,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/config"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/twelvedata"
-	persistence "github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/gorm"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/sqldb"
 	httpHandler "github.com/jmanzanog/stock-tracker/internal/interfaces/http"
 	"github.com/joho/godotenv"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	_ "github.com/sijms/go-ora/v2"
 )
 
 // setupLogger configures and returns a structured logger with source information
@@ -36,26 +37,40 @@ func setupLogger() *slog.Logger {
 
 // initializeDatabase sets up the database connection and runs migrations
 func initializeDatabase(cfg *config.Config) (domain.PortfolioRepository, error) {
-	var dialector gorm.Dialector
+	var db *sql.DB
+	var dialect sqldb.Dialect
+	var err error
 
 	switch cfg.DBDriver {
 	case "postgres":
-		dialector = postgres.Open(cfg.DBDSN)
+		db, err = sql.Open("pgx", cfg.DBDSN)
+		dialect = &sqldb.PostgresDialect{}
+	case "oracle":
+		db, err = sql.Open("oracle", cfg.DBDSN)
+		dialect = &sqldb.OracleDialect{}
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", cfg.DBDriver)
 	}
 
-	db, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect database: %w", err)
 	}
 
-	portfolioRepo := persistence.NewGormRepository(db)
-	if err := portfolioRepo.AutoMigrate(); err != nil {
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	wrapper := sqldb.New(db, dialect)
+
+	// Run migrations
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := wrapper.Dialect.Migrate(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	return portfolioRepo, nil
+	return sqldb.NewRepository(wrapper), nil
 }
 
 // buildServer creates and configures the HTTP server with all routes and handlers
