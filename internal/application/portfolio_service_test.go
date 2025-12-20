@@ -37,6 +37,9 @@ func (m *MockRepository) FindAll(_ context.Context) ([]*domain.Portfolio, error)
 	if m.findError != nil {
 		return nil, m.findError
 	}
+	if m.portfolio == nil {
+		return []*domain.Portfolio{}, nil
+	}
 	return []*domain.Portfolio{m.portfolio}, nil
 }
 
