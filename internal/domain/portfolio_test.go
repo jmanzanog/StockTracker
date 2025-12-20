@@ -32,7 +32,7 @@ func TestAddPosition_Merge(t *testing.T) {
 	// 1. Add first position
 	pos1 := NewPosition(inst, decimal.NewFromInt(1000), "USD") // 1000 USD
 	pos1.UpdatePrice(decimal.NewFromInt(100))                  // Price 100 -> Qty 10
-	p.AddPosition(pos1)
+	_ = p.AddPosition(pos1)                                    // Intentionally ignoring error in test setup
 
 	// 2. Add second position (same ISIN)
 	pos2 := NewPosition(inst, decimal.NewFromInt(500), "USD") // 500 USD

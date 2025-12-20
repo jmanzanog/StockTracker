@@ -17,7 +17,8 @@ type PortfolioService struct {
 
 func NewPortfolioService(repo domain.PortfolioRepository, marketData marketdata.MarketDataProvider) *PortfolioService {
 	defaultPortfolio := domain.NewPortfolio("default")
-	repo.Save(&defaultPortfolio)
+	// Attempt to save default portfolio; if it fails, it will be saved on first operation
+	_ = repo.Save(&defaultPortfolio)
 
 	return &PortfolioService{
 		repo:             repo,
