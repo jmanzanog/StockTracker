@@ -11,11 +11,11 @@ import (
 
 type PortfolioService struct {
 	repo             domain.PortfolioRepository
-	marketData       marketdata.MarketDataProvider
+	marketData       marketdata.MDataProvider
 	defaultPortfolio *domain.Portfolio
 }
 
-func NewPortfolioService(repo domain.PortfolioRepository, marketData marketdata.MarketDataProvider) (*PortfolioService, error) {
+func NewPortfolioService(repo domain.PortfolioRepository, marketData marketdata.MDataProvider) (*PortfolioService, error) {
 	defaultPortfolio := domain.NewPortfolio("default")
 	// Use background context for initialization since there's no request context yet
 	if err := repo.Save(context.Background(), &defaultPortfolio); err != nil {

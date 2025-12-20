@@ -57,6 +57,7 @@ func initializeDatabase(cfg *config.Config) (domain.PortfolioRepository, error) 
 	}
 
 	if err := db.Ping(); err != nil {
+		_ = db.Close() // Close connection if ping fails
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -67,6 +68,7 @@ func initializeDatabase(cfg *config.Config) (domain.PortfolioRepository, error) 
 	defer cancel()
 
 	if err := wrapper.Dialect.Migrate(ctx, db); err != nil {
+		_ = db.Close() // Close connection if migration fails
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
