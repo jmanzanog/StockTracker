@@ -5,14 +5,14 @@ CREATE TABLE instruments (
     type VARCHAR2(50) NOT NULL,
     currency VARCHAR2(10) NOT NULL,
     exchange VARCHAR2(50) NOT NULL
-);
+)
 /
 CREATE TABLE portfolios (
     id VARCHAR2(36) PRIMARY KEY,
     name VARCHAR2(255) NOT NULL,
     last_updated TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE
-);
+)
 /
 CREATE TABLE positions (
     id VARCHAR2(36) PRIMARY KEY,
@@ -25,5 +25,5 @@ CREATE TABLE positions (
     last_updated TIMESTAMP WITH TIME ZONE,
     CONSTRAINT fk_pos_port FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE CASCADE,
     CONSTRAINT fk_pos_inst FOREIGN KEY (instrument_isin) REFERENCES instruments(isin)
-);
+)
 /

@@ -18,18 +18,39 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func setupTestDB(t *testing.T) *DB {
-	dbType := os.Getenv("TEST_DB")
-	if dbType == "oracle" {
-		return setupOracle(t)
+// runWithBackends executes the test function against configured databases.
+// - Default (empty TEST_DB): Runs Postgres only (fast).
+// - TEST_DB=all: Runs both Postgres and Oracle.
+// - TEST_DB=postgres: Runs Postgres only.
+// - TEST_DB=oracle: Runs Oracle only.
+func runWithBackends(t *testing.T, testFunc func(t *testing.T, db *DB)) {
+	target := os.Getenv("TEST_DB")
+	if target == "" {
+		target = "postgres"
 	}
-	return setupPostgres(t)
+
+	runPostgres := target == "postgres" || target == "all"
+	runOracle := target == "oracle" || target == "all"
+
+	if runPostgres {
+		t.Run("Postgres", func(t *testing.T) {
+			db := setupPostgres(t)
+			testFunc(t, db)
+		})
+	}
+
+	if runOracle {
+		t.Run("Oracle", func(t *testing.T) {
+			db := setupOracle(t)
+			testFunc(t, db)
+		})
+	}
 }
 
 func setupPostgres(t *testing.T) *DB {
 	ctx := context.Background()
 	pgContainer, err := postgres.Run(ctx,
-		"postgres:17-alpine",
+		"postgres:18-alpine",
 		postgres.WithDatabase("testdb"),
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),
@@ -43,8 +64,6 @@ func setupPostgres(t *testing.T) *DB {
 		t.Fatalf("failed to start postgres container: %s", err)
 	}
 
-	// Print logs if failed
-	// t.Cleanup(...)
 	t.Cleanup(func() {
 		if err := pgContainer.Terminate(ctx); err != nil {
 			t.Logf("failed to terminate container: %s", err)
@@ -118,226 +137,236 @@ func setupOracle(t *testing.T) *DB {
 	return db
 }
 
-// --- Basic CRUD Tests (Ported) ---
+// --- Basic CRUD Tests ---
 
 func TestRepository_SaveAndFind(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	p := domain.NewPortfolio("My Test Portfolio")
-	ctx := context.Background()
-	err := repo.Save(ctx, &p)
-	assert.NoError(t, err)
+		p := domain.NewPortfolio("My Test Portfolio")
+		ctx := context.Background()
+		err := repo.Save(ctx, &p)
+		assert.NoError(t, err)
 
-	inst := domain.NewInstrument("US123", "TEST", "Test Corp", domain.InstrumentTypeStock, "USD", "NYSE")
-	pos := domain.NewPosition(inst, domain.NewDecimalFromInt(100), "USD")
-	err = pos.UpdatePrice(domain.NewDecimalFromInt(10))
-	assert.NoError(t, err)
+		inst := domain.NewInstrument("US123", "TEST", "Test Corp", domain.InstrumentTypeStock, "USD", "NYSE")
+		pos := domain.NewPosition(inst, domain.NewDecimalFromInt(100), "USD")
+		err = pos.UpdatePrice(domain.NewDecimalFromInt(10))
+		assert.NoError(t, err)
 
-	err = p.AddPosition(pos)
-	assert.NoError(t, err)
+		err = p.AddPosition(pos)
+		assert.NoError(t, err)
 
-	err = repo.Save(ctx, &p)
-	assert.NoError(t, err)
+		err = repo.Save(ctx, &p)
+		assert.NoError(t, err)
 
-	found, err := repo.FindByID(ctx, p.ID)
-	assert.NoError(t, err)
-	assert.NotNil(t, found)
-	assert.Equal(t, p.ID, found.ID)
-	assert.Equal(t, 1, len(found.Positions))
-	assert.Equal(t, "US123", found.Positions[0].Instrument.ISIN)
+		found, err := repo.FindByID(ctx, p.ID)
+		assert.NoError(t, err)
+		assert.NotNil(t, found)
+		assert.Equal(t, p.ID, found.ID)
+		assert.Equal(t, 1, len(found.Positions))
+		assert.Equal(t, "US123", found.Positions[0].Instrument.ISIN)
+	})
 }
 
 func TestRepository_Save_Update(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	p := domain.NewPortfolio("Updates")
-	ctx := context.Background()
-	err := repo.Save(ctx, &p)
-	assert.NoError(t, err)
+		p := domain.NewPortfolio("Updates")
+		ctx := context.Background()
+		err := repo.Save(ctx, &p)
+		assert.NoError(t, err)
 
-	p.Name = "Updated Name"
-	p.LastUpdated = time.Now()
+		p.Name = "Updated Name"
+		p.LastUpdated = time.Now()
 
-	err = repo.Save(ctx, &p)
-	assert.NoError(t, err)
+		err = repo.Save(ctx, &p)
+		assert.NoError(t, err)
 
-	found, err := repo.FindByID(ctx, p.ID)
-	assert.NoError(t, err)
-	assert.Equal(t, "Updated Name", found.Name)
+		found, err := repo.FindByID(ctx, p.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, "Updated Name", found.Name)
+	})
 }
 
 func TestRepository_NotFound(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	ctx := context.Background()
-	_, err := repo.FindByID(ctx, "non-existent-id")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "portfolio not found")
+		ctx := context.Background()
+		_, err := repo.FindByID(ctx, "non-existent-id")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "portfolio not found")
+	})
 }
 
 func TestRepository_FindAll_Empty(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	ctx := context.Background()
-	portfolios, err := repo.FindAll(ctx)
+		ctx := context.Background()
+		portfolios, err := repo.FindAll(ctx)
 
-	assert.NoError(t, err)
-	// assert.NotNil(t, portfolios) // Empty slice might be nil or empty, depends on impl
-	assert.Equal(t, 0, len(portfolios))
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(portfolios))
+	})
 }
 
 func TestRepository_FindAll_Multiple(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	ctx := context.Background()
+		ctx := context.Background()
 
-	p1 := domain.NewPortfolio("Portfolio 1")
-	p2 := domain.NewPortfolio("Portfolio 2")
-	p3 := domain.NewPortfolio("Portfolio 3")
+		p1 := domain.NewPortfolio("Portfolio 1")
+		p2 := domain.NewPortfolio("Portfolio 2")
+		p3 := domain.NewPortfolio("Portfolio 3")
 
-	_ = repo.Save(ctx, &p1)
-	_ = repo.Save(ctx, &p2)
-	_ = repo.Save(ctx, &p3)
+		_ = repo.Save(ctx, &p1)
+		_ = repo.Save(ctx, &p2)
+		_ = repo.Save(ctx, &p3)
 
-	portfolios, err := repo.FindAll(ctx)
+		portfolios, err := repo.FindAll(ctx)
 
-	assert.NoError(t, err)
-	assert.GreaterOrEqual(t, len(portfolios), 3)
+		assert.NoError(t, err)
+		assert.GreaterOrEqual(t, len(portfolios), 3)
+	})
 }
 
 func TestRepository_Delete_Success(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	ctx := context.Background()
+		ctx := context.Background()
 
-	p := domain.NewPortfolio("To Delete")
-	err := repo.Save(ctx, &p)
-	assert.NoError(t, err)
+		p := domain.NewPortfolio("To Delete")
+		err := repo.Save(ctx, &p)
+		assert.NoError(t, err)
 
-	err = repo.Delete(ctx, p.ID)
-	assert.NoError(t, err)
+		err = repo.Delete(ctx, p.ID)
+		assert.NoError(t, err)
 
-	_, err = repo.FindByID(ctx, p.ID)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "portfolio not found")
+		_, err = repo.FindByID(ctx, p.ID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "portfolio not found")
+	})
 }
 
 func TestRepository_Delete_NotFound(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	ctx := context.Background()
-	err := repo.Delete(ctx, "non-existent-id")
-	assert.NoError(t, err)
+		ctx := context.Background()
+		err := repo.Delete(ctx, "non-existent-id")
+		assert.NoError(t, err)
+	})
 }
 
 func TestRepository_Delete_WithPositions(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	ctx := context.Background()
+		ctx := context.Background()
 
-	p := domain.NewPortfolio("Portfolio with Positions")
-	inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
-	pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1000), "USD")
-	_ = pos.UpdatePrice(domain.NewDecimalFromInt(150))
-	_ = p.AddPosition(pos)
+		p := domain.NewPortfolio("Portfolio with Positions")
+		inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1000), "USD")
+		_ = pos.UpdatePrice(domain.NewDecimalFromInt(150))
+		_ = p.AddPosition(pos)
 
-	err := repo.Save(ctx, &p)
-	assert.NoError(t, err)
+		err := repo.Save(ctx, &p)
+		assert.NoError(t, err)
 
-	err = repo.Delete(ctx, p.ID)
-	assert.NoError(t, err)
+		err = repo.Delete(ctx, p.ID)
+		assert.NoError(t, err)
 
-	_, err = repo.FindByID(ctx, p.ID)
-	assert.Error(t, err)
+		_, err = repo.FindByID(ctx, p.ID)
+		assert.Error(t, err)
+	})
 }
 
 func TestRepository_Save_MultiplePositions(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	ctx := context.Background()
+		ctx := context.Background()
 
-	p := domain.NewPortfolio("Multi Position Portfolio")
+		p := domain.NewPortfolio("Multi Position Portfolio")
 
-	inst1 := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
-	pos1 := domain.NewPosition(inst1, domain.NewDecimalFromInt(1000), "USD")
-	_ = pos1.UpdatePrice(domain.NewDecimalFromInt(150))
-	_ = p.AddPosition(pos1)
+		inst1 := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		pos1 := domain.NewPosition(inst1, domain.NewDecimalFromInt(1000), "USD")
+		_ = pos1.UpdatePrice(domain.NewDecimalFromInt(150))
+		_ = p.AddPosition(pos1)
 
-	inst2 := domain.NewInstrument("US002", "GOOGL", "Google", domain.InstrumentTypeStock, "USD", "NASDAQ")
-	pos2 := domain.NewPosition(inst2, domain.NewDecimalFromInt(2000), "USD")
-	_ = pos2.UpdatePrice(domain.NewDecimalFromInt(2800))
-	_ = p.AddPosition(pos2)
+		inst2 := domain.NewInstrument("US002", "GOOGL", "Google", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		pos2 := domain.NewPosition(inst2, domain.NewDecimalFromInt(2000), "USD")
+		_ = pos2.UpdatePrice(domain.NewDecimalFromInt(2800))
+		_ = p.AddPosition(pos2)
 
-	err := repo.Save(ctx, &p)
-	assert.NoError(t, err)
+		err := repo.Save(ctx, &p)
+		assert.NoError(t, err)
 
-	found, err := repo.FindByID(ctx, p.ID)
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(found.Positions))
+		found, err := repo.FindByID(ctx, p.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(found.Positions))
+	})
 }
 
 func TestRepository_Save_UpdatePosition(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	ctx := context.Background()
+		ctx := context.Background()
 
-	p := domain.NewPortfolio("Portfolio")
+		p := domain.NewPortfolio("Portfolio")
 
-	inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
-	pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1000), "USD")
-	_ = pos.UpdatePrice(domain.NewDecimalFromInt(150))
-	_ = p.AddPosition(pos)
+		inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1000), "USD")
+		_ = pos.UpdatePrice(domain.NewDecimalFromInt(150))
+		_ = p.AddPosition(pos)
 
-	err := repo.Save(ctx, &p)
-	assert.NoError(t, err)
+		err := repo.Save(ctx, &p)
+		assert.NoError(t, err)
 
-	err = p.UpdatePositionPrice(pos.ID, domain.NewDecimalFromInt(200))
-	assert.NoError(t, err)
+		err = p.UpdatePositionPrice(pos.ID, domain.NewDecimalFromInt(200))
+		assert.NoError(t, err)
 
-	err = repo.Save(ctx, &p)
-	assert.NoError(t, err)
+		err = repo.Save(ctx, &p)
+		assert.NoError(t, err)
 
-	found, err := repo.FindByID(ctx, p.ID)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(found.Positions))
+		found, err := repo.FindByID(ctx, p.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(found.Positions))
 
-	expectedPrice := domain.NewDecimalFromInt(200)
-	assert.True(t, found.Positions[0].CurrentPrice.Equal(expectedPrice))
+		expectedPrice := domain.NewDecimalFromInt(200)
+		assert.True(t, found.Positions[0].CurrentPrice.Equal(expectedPrice))
+	})
 }
 
 func TestRepository_Save_SameInstrument_MultiplePositions(t *testing.T) {
-	db := setupTestDB(t)
-	repo := NewRepository(db)
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
 
-	ctx := context.Background()
+		ctx := context.Background()
 
-	inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
 
-	p1 := domain.NewPortfolio("Portfolio 1")
-	pos1 := domain.NewPosition(inst, domain.NewDecimalFromInt(1000), "USD")
-	_ = pos1.UpdatePrice(domain.NewDecimalFromInt(150))
-	_ = p1.AddPosition(pos1)
+		p1 := domain.NewPortfolio("Portfolio 1")
+		pos1 := domain.NewPosition(inst, domain.NewDecimalFromInt(1000), "USD")
+		_ = pos1.UpdatePrice(domain.NewDecimalFromInt(150))
+		_ = p1.AddPosition(pos1)
 
-	p2 := domain.NewPortfolio("Portfolio 2")
-	pos2 := domain.NewPosition(inst, domain.NewDecimalFromInt(2000), "USD")
-	_ = pos2.UpdatePrice(domain.NewDecimalFromInt(150))
-	_ = p2.AddPosition(pos2)
+		p2 := domain.NewPortfolio("Portfolio 2")
+		pos2 := domain.NewPosition(inst, domain.NewDecimalFromInt(2000), "USD")
+		_ = pos2.UpdatePrice(domain.NewDecimalFromInt(150))
+		_ = p2.AddPosition(pos2)
 
-	_ = repo.Save(ctx, &p1)
-	_ = repo.Save(ctx, &p2)
+		_ = repo.Save(ctx, &p1)
+		_ = repo.Save(ctx, &p2)
 
-	found1, _ := repo.FindByID(ctx, p1.ID)
-	found2, _ := repo.FindByID(ctx, p2.ID)
+		found1, _ := repo.FindByID(ctx, p1.ID)
+		found2, _ := repo.FindByID(ctx, p2.ID)
 
-	assert.Equal(t, found1.Positions[0].Instrument.ISIN, found2.Positions[0].Instrument.ISIN)
+		assert.Equal(t, found1.Positions[0].Instrument.ISIN, found2.Positions[0].Instrument.ISIN)
+	})
 }

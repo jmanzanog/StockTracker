@@ -24,7 +24,7 @@ func setupIntegrationDB(t *testing.T) (*sql.DB, func()) {
 
 	// Start Postgres Container
 	pgContainer, err := postgres.Run(ctx,
-		"postgres:17-alpine",
+		"postgres:18-alpine",
 		postgres.WithDatabase("testdb"),
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),
