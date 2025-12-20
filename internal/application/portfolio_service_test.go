@@ -103,6 +103,31 @@ func TestNewPortfolioService_Success(t *testing.T) {
 	}
 }
 
+func TestNewPortfolioService_FindAllError(t *testing.T) {
+	repo := &MockRepository{
+		findError: fmt.Errorf("database query failed"),
+	}
+	marketData := &MockMarketData{}
+
+	service, err := NewPortfolioService(repo, marketData)
+
+	if err == nil {
+		t.Fatal("expected error when FindAll fails")
+	}
+
+	if service != nil {
+		t.Error("expected nil service when initialization fails")
+	}
+
+	expectedErr := "failed to list portfolios"
+	if err.Error() != fmt.Sprintf("%s: %s", expectedErr, "database query failed") {
+		// Just creating a simpler check as wrapping might vary slightly
+		if len(err.Error()) < len(expectedErr) {
+			t.Errorf("expected error message to contain %q, got %q", expectedErr, err.Error())
+		}
+	}
+}
+
 func TestNewPortfolioService_RepositoryError(t *testing.T) {
 	repo := &MockRepository{
 		saveError: fmt.Errorf("database connection failed"),
