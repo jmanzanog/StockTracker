@@ -160,17 +160,7 @@ func (d Decimal) Round(places int32) (Decimal, error) {
 	ctx.Rounding = apd.RoundHalfUp
 
 	// Create a quantization exponent 10^-places
-	exp := -int64(places)
-	quantizer := Decimal{}
-	quantizer.SetFinite(0, int32(exp)) // 0 * 10^-places = 0.00...01 basically defines the scale?
-	// apd.Quantize uses the exponent of the second argument.
-	// We need a decimal that has the desired exponent.
-	// Since SetFinite(coeff, exp) creates coeff * 10^exp.
-	// To round to 2 decimals (10^-2), we pass something with exponent -2.
-
-	// Better approach using Quantize:
 	// "Quantize sets d to the value of x rounded to the precision of y."
-
 	y := Decimal{}
 	y.SetFinite(0, -places) // Value is 0, but Exponent is -places.
 
