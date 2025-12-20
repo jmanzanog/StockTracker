@@ -30,16 +30,55 @@ func (r *GormRepository) AutoMigrate() error {
 }
 
 func (r *GormRepository) Save(ctx context.Context, portfolio *domain.Portfolio) error {
-	// GORM's Save updates if ID exists, creates if not.
-	// We use session with FullSaveAssociations to ensure positions are updated naturally.
-	// We use OnConflict clause to handle cases where nested entities (like Instruments or Positions) already exist
-	// UpdateAll: true ensures that if it exists, it updates it.
-	if err := r.db.WithContext(ctx).Session(&gorm.Session{FullSaveAssociations: true}).
-		Clauses(clause.OnConflict{UpdateAll: true}).
-		Save(portfolio).Error; err != nil {
+	// Use a transaction to ensure atomicity
+	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Step 1: Save/Update the Portfolio first (without associations)
+	portfolioCopy := *portfolio
+	portfolioCopy.Positions = nil // Temporarily remove positions
+
+	if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).
+		Save(&portfolioCopy).Error; err != nil {
+		tx.Rollback()
 		slog.Error("Failed to save portfolio", "portfolio_id", portfolio.ID, "error", err)
 		return fmt.Errorf("failed to save portfolio: %w", err)
 	}
+
+	// Step 2: Save/Update Instruments (to ensure they exist)
+	for i := range portfolio.Positions {
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).
+			Save(&portfolio.Positions[i].Instrument).Error; err != nil {
+			tx.Rollback()
+			slog.Error("Failed to save instrument", "isin", portfolio.Positions[i].Instrument.ISIN, "error", err)
+			return fmt.Errorf("failed to save instrument: %w", err)
+		}
+	}
+
+	// Step 3: Save/Update Positions (now that portfolio exists)
+	for i := range portfolio.Positions {
+		portfolio.Positions[i].PortfolioID = portfolio.ID
+		if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).
+			Save(&portfolio.Positions[i]).Error; err != nil {
+			tx.Rollback()
+			slog.Error("Failed to save position", "position_id", portfolio.Positions[i].ID, "error", err)
+			return fmt.Errorf("failed to save position: %w", err)
+		}
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		slog.Error("Failed to commit transaction", "portfolio_id", portfolio.ID, "error", err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return nil
 }
 
@@ -66,8 +105,33 @@ func (r *GormRepository) FindAll(ctx context.Context) ([]*domain.Portfolio, erro
 }
 
 func (r *GormRepository) Delete(ctx context.Context, id string) error {
-	if err := r.db.WithContext(ctx).Delete(&domain.Portfolio{}, "id = ?", id).Error; err != nil {
-		return err
+	// Use a transaction to ensure atomicity
+	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Step 1: Delete all positions associated with this portfolio
+	if err := tx.Where("portfolio_id = ?", id).Delete(&domain.Position{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete positions: %w", err)
+	}
+
+	// Step 2: Delete the portfolio
+	if err := tx.Delete(&domain.Portfolio{}, "id = ?", id).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete portfolio: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return nil
 }

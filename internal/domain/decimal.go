@@ -161,7 +161,7 @@ func (d Decimal) Round(places int32) (Decimal, error) {
 	// "Quantize sets d to the value of x rounded to the precision of y."
 
 	y := Decimal{}
-	y.SetFinite(0, -int32(places)) // Value is 0, but Exponent is -places.
+	y.SetFinite(0, -places) // Value is 0, but Exponent is -places.
 
 	if _, err := ctx.Quantize(&res.Decimal, &d.Decimal, y.Exponent); err != nil {
 		return res, fmt.Errorf("quantize operation failed: %w", err)

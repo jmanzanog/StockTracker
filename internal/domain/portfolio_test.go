@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -111,7 +112,7 @@ func TestAddPosition_Invalid(t *testing.T) {
 	pos := NewPosition(inst, Zero, "USD")
 
 	err := p.AddPosition(pos)
-	if err != ErrInvalidPosition {
+	if !errors.Is(err, ErrInvalidPosition) {
 		t.Errorf("Expected ErrInvalidPosition, got %v", err)
 	}
 }
@@ -161,7 +162,7 @@ func TestRemovePosition_NotFound(t *testing.T) {
 
 	err := p.RemovePosition("non-existent-id")
 
-	if err != ErrPositionNotFound {
+	if !errors.Is(err, ErrPositionNotFound) {
 		t.Errorf("expected ErrPositionNotFound, got %v", err)
 	}
 }
@@ -220,7 +221,7 @@ func TestGetPosition_NotFound(t *testing.T) {
 
 	_, err := p.GetPosition("non-existent-id")
 
-	if err != ErrPositionNotFound {
+	if !errors.Is(err, ErrPositionNotFound) {
 		t.Errorf("expected ErrPositionNotFound, got %v", err)
 	}
 }
@@ -252,7 +253,7 @@ func TestUpdatePositionPrice_NotFound(t *testing.T) {
 
 	err := p.UpdatePositionPrice("non-existent-id", NewDecimalFromInt(100))
 
-	if err != ErrPositionNotFound {
+	if !errors.Is(err, ErrPositionNotFound) {
 		t.Errorf("expected ErrPositionNotFound, got %v", err)
 	}
 }
