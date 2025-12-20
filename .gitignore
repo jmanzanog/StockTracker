@@ -27,6 +27,7 @@ go.work
 *.swp
 *.swo
 *~
+.vscode/settings.json
 
 # OS
 .DS_Store
@@ -34,3 +35,5 @@ Thumbs.db
 
 # Logs and temp files
 *.txt
+/qodana.yaml
+/coverage

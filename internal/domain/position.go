@@ -1,61 +1,91 @@
 package domain
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 )
 
 type Position struct {
-	ID               string          `json:"id" gorm:"primaryKey"`
-	PortfolioID      string          `json:"-"` // Foreign Key for GORM
-	InstrumentISIN   string          `json:"-"` // Foreign Key to Instrument table
-	Instrument       Instrument      `json:"instrument" gorm:"foreignKey:InstrumentISIN;references:ISIN"`
-	InvestedAmount   decimal.Decimal `json:"invested_amount" gorm:"type:decimal(20,8)"`
-	InvestedCurrency string          `json:"invested_currency"`
-	Quantity         decimal.Decimal `json:"quantity" gorm:"type:decimal(20,8)"`
-	CurrentPrice     decimal.Decimal `json:"current_price" gorm:"type:decimal(20,8)"`
-	LastUpdated      time.Time       `json:"last_updated"`
+	ID               string     `json:"id" gorm:"primaryKey"`
+	PortfolioID      string     `json:"-"` // Foreign Key for GORM
+	InstrumentISIN   string     `json:"-"` // Foreign Key to Instrument table
+	Instrument       Instrument `json:"instrument" gorm:"foreignKey:InstrumentISIN;references:ISIN"`
+	InvestedAmount   Decimal    `json:"invested_amount" gorm:"type:numeric"`
+	InvestedCurrency string     `json:"invested_currency"`
+	Quantity         Decimal    `json:"quantity" gorm:"type:numeric"`
+	CurrentPrice     Decimal    `json:"current_price" gorm:"type:numeric"`
+	LastUpdated      time.Time  `json:"last_updated"`
 }
 
-func NewPosition(instrument Instrument, investedAmount decimal.Decimal, investedCurrency string) Position {
+func NewPosition(instrument Instrument, investedAmount Decimal, investedCurrency string) Position {
 	return Position{
 		ID:               uuid.New().String(),
 		Instrument:       instrument,
 		InvestedAmount:   investedAmount,
 		InvestedCurrency: investedCurrency,
-		Quantity:         decimal.Zero,
-		CurrentPrice:     decimal.Zero,
+		Quantity:         Zero,
+		CurrentPrice:     Zero,
 		LastUpdated:      time.Now(),
 	}
 }
 
-func (p *Position) UpdatePrice(price decimal.Decimal) {
+func (p *Position) UpdatePrice(price Decimal) error {
 	p.CurrentPrice = price
 	p.LastUpdated = time.Now()
 
 	if !price.IsZero() && !p.InvestedAmount.IsZero() {
-		p.Quantity = p.InvestedAmount.Div(price)
+		quantity, err := p.InvestedAmount.Div(price)
+		if err != nil {
+			return fmt.Errorf("failed to calculate quantity: %w", err)
+		}
+		p.Quantity = quantity
 	}
+	return nil
 }
 
-func (p *Position) CurrentValue() decimal.Decimal {
+func (p *Position) CurrentValue() (Decimal, error) {
 	if p.CurrentPrice.IsZero() {
-		return decimal.Zero
+		return Zero, nil
 	}
-	return p.Quantity.Mul(p.CurrentPrice)
+	value, err := p.Quantity.Mul(p.CurrentPrice)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to calculate current value: %w", err)
+	}
+	return value, nil
 }
 
-func (p *Position) ProfitLoss() decimal.Decimal {
-	return p.CurrentValue().Sub(p.InvestedAmount)
+func (p *Position) ProfitLoss() (Decimal, error) {
+	currentValue, err := p.CurrentValue()
+	if err != nil {
+		return Zero, fmt.Errorf("failed to get current value: %w", err)
+	}
+	result, err := currentValue.Sub(p.InvestedAmount)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to calculate profit/loss: %w", err)
+	}
+	return result, nil
 }
 
-func (p *Position) ProfitLossPercent() decimal.Decimal {
+func (p *Position) ProfitLossPercent() (Decimal, error) {
 	if p.InvestedAmount.IsZero() {
-		return decimal.Zero
+		return Zero, nil
 	}
-	return p.ProfitLoss().Div(p.InvestedAmount).Mul(decimal.NewFromInt(100))
+	profitLoss, err := p.ProfitLoss()
+	if err != nil {
+		return Zero, fmt.Errorf("failed to calculate profit/loss: %w", err)
+	}
+	percentage, err := profitLoss.Div(p.InvestedAmount)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to divide profit/loss: %w", err)
+	}
+	hundred := NewDecimalFromInt(100)
+	result, err := percentage.Mul(hundred)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to multiply by 100: %w", err)
+	}
+	return result, nil
 }
 
 func (p *Position) IsValid() bool {

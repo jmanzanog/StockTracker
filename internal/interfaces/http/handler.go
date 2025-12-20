@@ -1,27 +1,37 @@
 package http
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jmanzanog/stock-tracker/internal/application"
-	"github.com/shopspring/decimal"
+	"github.com/jmanzanog/stock-tracker/internal/domain"
 )
 
-type Handler struct {
-	portfolioService *application.PortfolioService
+// PortfolioService defines the interface for portfolio operations
+type PortfolioService interface {
+	AddPosition(ctx context.Context, isin string, amount domain.Decimal, currency string) (*domain.Position, error)
+	RemovePosition(ctx context.Context, id string) error
+	GetPosition(ctx context.Context, id string) (*domain.Position, error)
+	ListPositions(ctx context.Context) ([]domain.Position, error)
+	GetPortfolioSummary(ctx context.Context) (*domain.Portfolio, error)
+	RefreshPrices(ctx context.Context) error
 }
 
-func NewHandler(portfolioService *application.PortfolioService) *Handler {
+type Handler struct {
+	portfolioService PortfolioService
+}
+
+func NewHandler(portfolioService PortfolioService) *Handler {
 	return &Handler{
 		portfolioService: portfolioService,
 	}
 }
 
 type AddPositionRequest struct {
-	ISIN           string          `json:"isin" binding:"required"`
-	InvestedAmount decimal.Decimal `json:"invested_amount" binding:"required"`
-	Currency       string          `json:"currency" binding:"required"`
+	ISIN           string         `json:"isin" binding:"required"`
+	InvestedAmount domain.Decimal `json:"invested_amount" binding:"required"`
+	Currency       string         `json:"currency" binding:"required"`
 }
 
 type ErrorResponse struct {
@@ -84,14 +94,38 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 		return
 	}
 
+	totalValue, err := portfolio.TotalValue()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	totalInvested, err := portfolio.TotalInvested()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	totalProfitLoss, err := portfolio.TotalProfitLoss()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	totalProfitLossPercent, err := portfolio.TotalProfitLossPercent()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
 	summary := map[string]interface{}{
 		"id":                        portfolio.ID,
 		"name":                      portfolio.Name,
 		"positions":                 portfolio.Positions,
-		"total_value":               portfolio.TotalValue(),
-		"total_invested":            portfolio.TotalInvested(),
-		"total_profit_loss":         portfolio.TotalProfitLoss(),
-		"total_profit_loss_percent": portfolio.TotalProfitLossPercent(),
+		"total_value":               totalValue,
+		"total_invested":            totalInvested,
+		"total_profit_loss":         totalProfitLoss,
+		"total_profit_loss_percent": totalProfitLossPercent,
 		"created_at":                portfolio.CreatedAt,
 	}
 

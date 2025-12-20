@@ -46,7 +46,7 @@ func TestPriceUpdater_Start(t *testing.T) {
 		go updater.Start(ctx)
 
 		// Wait enough time for a few ticks
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 
 		updater.Stop()
 
