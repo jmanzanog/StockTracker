@@ -387,7 +387,7 @@ func TestDecimal_Scan(t *testing.T) {
 		{"[]byte", []byte("123.45"), "123.45", false},
 		{"string", "678.90", "678.90", false},
 		{"int64", int64(100), "100", false},
-		{"float64", float64(123.45), "123.45", false},
+		{"float64", 123.45, "123.45", false},
 		{"unsupported type", true, "", true},
 	}
 
