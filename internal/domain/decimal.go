@@ -78,37 +78,39 @@ func (d *Decimal) Scan(value interface{}) error {
 
 // Arithmetic Helpers
 
-func (d Decimal) Add(other Decimal) Decimal {
+func (d Decimal) Add(other Decimal) (Decimal, error) {
 	res := Decimal{}
-	DefaultContext.Add(&res.Decimal, &d.Decimal, &other.Decimal)
-	return res
+	if _, err := DefaultContext.Add(&res.Decimal, &d.Decimal, &other.Decimal); err != nil {
+		return res, fmt.Errorf("add operation failed: %w", err)
+	}
+	return res, nil
 }
 
-func (d Decimal) Sub(other Decimal) Decimal {
+func (d Decimal) Sub(other Decimal) (Decimal, error) {
 	res := Decimal{}
-	DefaultContext.Sub(&res.Decimal, &d.Decimal, &other.Decimal)
-	return res
+	if _, err := DefaultContext.Sub(&res.Decimal, &d.Decimal, &other.Decimal); err != nil {
+		return res, fmt.Errorf("sub operation failed: %w", err)
+	}
+	return res, nil
 }
 
-func (d Decimal) Mul(other Decimal) Decimal {
+func (d Decimal) Mul(other Decimal) (Decimal, error) {
 	res := Decimal{}
-	DefaultContext.Mul(&res.Decimal, &d.Decimal, &other.Decimal)
-	return res
+	if _, err := DefaultContext.Mul(&res.Decimal, &d.Decimal, &other.Decimal); err != nil {
+		return res, fmt.Errorf("mul operation failed: %w", err)
+	}
+	return res, nil
 }
 
-func (d Decimal) Div(other Decimal) Decimal {
+func (d Decimal) Div(other Decimal) (Decimal, error) {
 	if other.IsZero() {
-		// In finance, division by zero is usually a bug or defined as 0/error.
-		// apd panics or returns infinity. Let's return 0 for safety in this specific domain context
-		// OR let it bubble up. Standard library shopspring panics.
-		// apd returns error if using Context.Quo, but strict wrapper might want to be safer.
-		// Let's stick to valid arithmetic or error.
-		// For simplicity in this wrapper compatible with previous code:
-		return Zero
+		return Zero, fmt.Errorf("division by zero")
 	}
 	res := Decimal{}
-	DefaultContext.Quo(&res.Decimal, &d.Decimal, &other.Decimal)
-	return res
+	if _, err := DefaultContext.Quo(&res.Decimal, &d.Decimal, &other.Decimal); err != nil {
+		return res, fmt.Errorf("div operation failed: %w", err)
+	}
+	return res, nil
 }
 
 func (d Decimal) IsZero() bool {
@@ -140,7 +142,7 @@ func (d *Decimal) UnmarshalJSON(data []byte) error {
 }
 
 // Round rounds the decimal to the specified number of places.
-func (d Decimal) Round(places int32) Decimal {
+func (d Decimal) Round(places int32) (Decimal, error) {
 	res := Decimal{}
 	// Create a context for rounding
 	ctx := apd.BaseContext.WithPrecision(20)
@@ -161,6 +163,8 @@ func (d Decimal) Round(places int32) Decimal {
 	y := Decimal{}
 	y.SetFinite(0, -int32(places)) // Value is 0, but Exponent is -places.
 
-	ctx.Quantize(&res.Decimal, &d.Decimal, y.Exponent)
-	return res
+	if _, err := ctx.Quantize(&res.Decimal, &d.Decimal, y.Exponent); err != nil {
+		return res, fmt.Errorf("quantize operation failed: %w", err)
+	}
+	return res, nil
 }

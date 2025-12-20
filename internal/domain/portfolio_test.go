@@ -8,9 +8,12 @@ func TestAddPosition_New(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
 	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
 	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD")
-	pos.UpdatePrice(NewDecimalFromInt(100)) // Quantity = 10
+	err := pos.UpdatePrice(NewDecimalFromInt(100)) // Quantity = 10
+	if err != nil {
+		t.Fatalf("UpdatePrice failed: %v", err)
+	}
 
-	err := p.AddPosition(pos)
+	err = p.AddPosition(pos)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -29,7 +32,10 @@ func TestAddPosition_Merge(t *testing.T) {
 
 	// 1. Add first position
 	pos1 := NewPosition(inst, NewDecimalFromInt(1000), "USD") // 1000 USD
-	pos1.UpdatePrice(NewDecimalFromInt(100))                  // Price 100 -> Qty 10
+	err := pos1.UpdatePrice(NewDecimalFromInt(100))           // Price 100 -> Qty 10
+	if err != nil {
+		t.Fatalf("UpdatePrice failed: %v", err)
+	}
 
 	if err := p.AddPosition(pos1); err != nil {
 		t.Errorf("Expected no error on first add, got %v", err)
@@ -37,9 +43,12 @@ func TestAddPosition_Merge(t *testing.T) {
 
 	// 2. Add second position (same ISIN)
 	pos2 := NewPosition(inst, NewDecimalFromInt(500), "USD") // 500 USD
-	pos2.UpdatePrice(NewDecimalFromInt(125))                 // Price 125 -> Qty 4
+	err = pos2.UpdatePrice(NewDecimalFromInt(125))           // Price 125 -> Qty 4
+	if err != nil {
+		t.Fatalf("UpdatePrice failed: %v", err)
+	}
 
-	err := p.AddPosition(pos2)
+	err = p.AddPosition(pos2)
 	if err != nil {
 		t.Fatalf("Expected no error on merge, got %v", err)
 	}

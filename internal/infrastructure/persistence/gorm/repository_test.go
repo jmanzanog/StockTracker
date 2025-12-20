@@ -71,7 +71,10 @@ func TestGormRepository_SaveAndFind(t *testing.T) {
 	// Add a position
 	inst := domain.NewInstrument("US123", "TEST", "Test Corp", domain.InstrumentTypeStock, "USD", "NYSE")
 	pos := domain.NewPosition(inst, domain.NewDecimalFromInt(100), "USD")
-	pos.UpdatePrice(domain.NewDecimalFromInt(10))
+	err = pos.UpdatePrice(domain.NewDecimalFromInt(10))
+	if err != nil {
+		t.Fatalf("UpdatePrice failed: %v", err)
+	}
 
 	err = p.AddPosition(pos)
 	assert.NoError(t, err)
@@ -112,7 +115,10 @@ func TestGormRepository_Save_Update(t *testing.T) {
 	err = repo.Save(ctx, &p)
 	assert.NoError(t, err)
 
-	found, _ := repo.FindByID(ctx, p.ID)
+	found, err := repo.FindByID(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("FindByID failed: %v", err)
+	}
 	assert.Equal(t, "Updated Name", found.Name)
 }
 

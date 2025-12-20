@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,8 +38,18 @@ func (p *Portfolio) AddPosition(pos Position) error {
 	for i, existing := range p.Positions {
 		if existing.ID == pos.ID || (existing.Instrument.ISIN == pos.Instrument.ISIN && existing.Instrument.ISIN != "") {
 			// Merge Logic: Update existing position
-			p.Positions[i].InvestedAmount = p.Positions[i].InvestedAmount.Add(pos.InvestedAmount)
-			p.Positions[i].Quantity = p.Positions[i].Quantity.Add(pos.Quantity)
+			newInvestedAmount, err := p.Positions[i].InvestedAmount.Add(pos.InvestedAmount)
+			if err != nil {
+				return fmt.Errorf("failed to add invested amount: %w", err)
+			}
+			p.Positions[i].InvestedAmount = newInvestedAmount
+
+			newQuantity, err := p.Positions[i].Quantity.Add(pos.Quantity)
+			if err != nil {
+				return fmt.Errorf("failed to add quantity: %w", err)
+			}
+			p.Positions[i].Quantity = newQuantity
+
 			// We keep the latest price update
 			p.Positions[i].CurrentPrice = pos.CurrentPrice
 			p.Positions[i].LastUpdated = time.Now()
@@ -74,34 +85,76 @@ func (p *Portfolio) UpdatePositionPrice(id string, price Decimal) error {
 	if err != nil {
 		return err
 	}
-	pos.UpdatePrice(price)
+	if err := pos.UpdatePrice(price); err != nil {
+		return fmt.Errorf("failed to update price: %w", err)
+	}
 	return nil
 }
 
-func (p *Portfolio) TotalValue() Decimal {
+func (p *Portfolio) TotalValue() (Decimal, error) {
 	total := Zero
 	for _, pos := range p.Positions {
-		total = total.Add(pos.CurrentValue())
+		currentValue, err := pos.CurrentValue()
+		if err != nil {
+			return Zero, fmt.Errorf("failed to calculate current value: %w", err)
+		}
+		newTotal, err := total.Add(currentValue)
+		if err != nil {
+			return Zero, fmt.Errorf("failed to add to total: %w", err)
+		}
+		total = newTotal
 	}
-	return total
+	return total, nil
 }
 
-func (p *Portfolio) TotalInvested() Decimal {
+func (p *Portfolio) TotalInvested() (Decimal, error) {
 	total := Zero
 	for _, pos := range p.Positions {
-		total = total.Add(pos.InvestedAmount)
+		newTotal, err := total.Add(pos.InvestedAmount)
+		if err != nil {
+			return Zero, fmt.Errorf("failed to add invested amount: %w", err)
+		}
+		total = newTotal
 	}
-	return total
+	return total, nil
 }
 
-func (p *Portfolio) TotalProfitLoss() Decimal {
-	return p.TotalValue().Sub(p.TotalInvested())
+func (p *Portfolio) TotalProfitLoss() (Decimal, error) {
+	totalValue, err := p.TotalValue()
+	if err != nil {
+		return Zero, fmt.Errorf("failed to calculate total value: %w", err)
+	}
+	totalInvested, err := p.TotalInvested()
+	if err != nil {
+		return Zero, fmt.Errorf("failed to calculate total invested: %w", err)
+	}
+	result, err := totalValue.Sub(totalInvested)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to subtract: %w", err)
+	}
+	return result, nil
 }
 
-func (p *Portfolio) TotalProfitLossPercent() Decimal {
-	invested := p.TotalInvested()
+func (p *Portfolio) TotalProfitLossPercent() (Decimal, error) {
+	invested, err := p.TotalInvested()
+	if err != nil {
+		return Zero, fmt.Errorf("failed to calculate total invested: %w", err)
+	}
 	if invested.IsZero() {
-		return Zero
+		return Zero, nil
 	}
-	return p.TotalProfitLoss().Div(invested).Mul(NewDecimalFromInt(100))
+	profitLoss, err := p.TotalProfitLoss()
+	if err != nil {
+		return Zero, fmt.Errorf("failed to calculate profit/loss: %w", err)
+	}
+	percentage, err := profitLoss.Div(invested)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to divide: %w", err)
+	}
+	hundred := NewDecimalFromInt(100)
+	result, err := percentage.Mul(hundred)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to multiply by 100: %w", err)
+	}
+	return result, nil
 }

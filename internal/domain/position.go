@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,31 +31,61 @@ func NewPosition(instrument Instrument, investedAmount Decimal, investedCurrency
 	}
 }
 
-func (p *Position) UpdatePrice(price Decimal) {
+func (p *Position) UpdatePrice(price Decimal) error {
 	p.CurrentPrice = price
 	p.LastUpdated = time.Now()
 
 	if !price.IsZero() && !p.InvestedAmount.IsZero() {
-		p.Quantity = p.InvestedAmount.Div(price)
+		quantity, err := p.InvestedAmount.Div(price)
+		if err != nil {
+			return fmt.Errorf("failed to calculate quantity: %w", err)
+		}
+		p.Quantity = quantity
 	}
+	return nil
 }
 
-func (p *Position) CurrentValue() Decimal {
+func (p *Position) CurrentValue() (Decimal, error) {
 	if p.CurrentPrice.IsZero() {
-		return Zero
+		return Zero, nil
 	}
-	return p.Quantity.Mul(p.CurrentPrice)
+	value, err := p.Quantity.Mul(p.CurrentPrice)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to calculate current value: %w", err)
+	}
+	return value, nil
 }
 
-func (p *Position) ProfitLoss() Decimal {
-	return p.CurrentValue().Sub(p.InvestedAmount)
+func (p *Position) ProfitLoss() (Decimal, error) {
+	currentValue, err := p.CurrentValue()
+	if err != nil {
+		return Zero, fmt.Errorf("failed to get current value: %w", err)
+	}
+	result, err := currentValue.Sub(p.InvestedAmount)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to calculate profit/loss: %w", err)
+	}
+	return result, nil
 }
 
-func (p *Position) ProfitLossPercent() Decimal {
+func (p *Position) ProfitLossPercent() (Decimal, error) {
 	if p.InvestedAmount.IsZero() {
-		return Zero
+		return Zero, nil
 	}
-	return p.ProfitLoss().Div(p.InvestedAmount).Mul(NewDecimalFromInt(100))
+	profitLoss, err := p.ProfitLoss()
+	if err != nil {
+		return Zero, fmt.Errorf("failed to calculate profit/loss: %w", err)
+	}
+	percentage, err := profitLoss.Div(p.InvestedAmount)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to divide profit/loss: %w", err)
+	}
+	hundred := NewDecimalFromInt(100)
+	result, err := percentage.Mul(hundred)
+	if err != nil {
+		return Zero, fmt.Errorf("failed to multiply by 100: %w", err)
+	}
+	return result, nil
 }
 
 func (p *Position) IsValid() bool {

@@ -9,13 +9,19 @@ func TestPosition_UpdatePrice(t *testing.T) {
 	position := NewPosition(instrument, NewDecimalFromInt(10000), "USD")
 
 	price := NewDecimalFromInt(150)
-	position.UpdatePrice(price)
+	err := position.UpdatePrice(price)
+	if err != nil {
+		t.Fatalf("UpdatePrice failed: %v", err)
+	}
 
 	if !position.CurrentPrice.Equal(price) {
 		t.Errorf("Expected current price %s, got %s", price, position.CurrentPrice)
 	}
 
-	expectedQuantity := NewDecimalFromInt(10000).Div(price)
+	expectedQuantity, err := NewDecimalFromInt(10000).Div(price)
+	if err != nil {
+		t.Fatalf("Division failed: %v", err)
+	}
 	if !position.Quantity.Equal(expectedQuantity) {
 		t.Errorf("Expected quantity %s, got %s", expectedQuantity, position.Quantity)
 	}
@@ -24,9 +30,15 @@ func TestPosition_UpdatePrice(t *testing.T) {
 func TestPosition_CurrentValue(t *testing.T) {
 	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
 	position := NewPosition(instrument, NewDecimalFromInt(10000), "USD")
-	position.UpdatePrice(NewDecimalFromInt(100))
+	err := position.UpdatePrice(NewDecimalFromInt(100))
+	if err != nil {
+		t.Fatalf("UpdatePrice failed: %v", err)
+	}
 
-	currentValue := position.CurrentValue()
+	currentValue, err := position.CurrentValue()
+	if err != nil {
+		t.Fatalf("CurrentValue failed: %v", err)
+	}
 	expected := NewDecimalFromInt(10000)
 
 	if !currentValue.Equal(expected) {
@@ -39,7 +51,10 @@ func TestPosition_ProfitLoss(t *testing.T) {
 	position := NewPosition(instrument, NewDecimalFromInt(10000), "USD")
 
 	initialPrice := NewDecimalFromInt(100)
-	position.UpdatePrice(initialPrice)
+	err := position.UpdatePrice(initialPrice)
+	if err != nil {
+		t.Fatalf("UpdatePrice failed: %v", err)
+	}
 
 	quantity := position.Quantity
 
@@ -47,11 +62,18 @@ func TestPosition_ProfitLoss(t *testing.T) {
 	position.Quantity = quantity
 	position.CurrentPrice = newPrice
 
-	profitLoss := position.ProfitLoss().Round(2)
+	profitLoss, err := position.ProfitLoss()
+	if err != nil {
+		t.Fatalf("ProfitLoss failed: %v", err)
+	}
+	roundedProfitLoss, err := profitLoss.Round(2)
+	if err != nil {
+		t.Fatalf("Round failed: %v", err)
+	}
 	expected := NewDecimalFromInt(2000)
 
-	if !profitLoss.Equal(expected) {
-		t.Errorf("Expected P/L %s, got %s", expected, profitLoss)
+	if !roundedProfitLoss.Equal(expected) {
+		t.Errorf("Expected P/L %s, got %s", expected, roundedProfitLoss)
 	}
 }
 
@@ -60,7 +82,10 @@ func TestPosition_ProfitLossPercent(t *testing.T) {
 	position := NewPosition(instrument, NewDecimalFromInt(10000), "USD")
 
 	initialPrice := NewDecimalFromInt(100)
-	position.UpdatePrice(initialPrice)
+	err := position.UpdatePrice(initialPrice)
+	if err != nil {
+		t.Fatalf("UpdatePrice failed: %v", err)
+	}
 
 	quantity := position.Quantity
 
@@ -68,10 +93,17 @@ func TestPosition_ProfitLossPercent(t *testing.T) {
 	position.Quantity = quantity
 	position.CurrentPrice = newPrice
 
-	profitLossPercent := position.ProfitLossPercent().Round(0)
+	profitLossPercent, err := position.ProfitLossPercent()
+	if err != nil {
+		t.Fatalf("ProfitLossPercent failed: %v", err)
+	}
+	roundedPercent, err := profitLossPercent.Round(0)
+	if err != nil {
+		t.Fatalf("Round failed: %v", err)
+	}
 	expected := NewDecimalFromInt(20)
 
-	if !profitLossPercent.Equal(expected) {
-		t.Errorf("Expected P/L%% %s, got %s", expected, profitLossPercent)
+	if !roundedPercent.Equal(expected) {
+		t.Errorf("Expected P/L%% %s, got %s", expected, roundedPercent)
 	}
 }

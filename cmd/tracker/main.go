@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -23,14 +24,57 @@ import (
 	"gorm.io/gorm"
 )
 
-func main() {
-	// Setup Structured Logging with Source Info
+// setupLogger configures and returns a structured logger with source information
+func setupLogger() *slog.Logger {
 	opts := &slog.HandlerOptions{
 		AddSource: true,
 		Level:     slog.LevelDebug,
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
 	slog.SetDefault(logger)
+	return logger
+}
+
+// initializeDatabase sets up the database connection and runs migrations
+func initializeDatabase(cfg *config.Config) (domain.PortfolioRepository, error) {
+	var dialector gorm.Dialector
+
+	switch cfg.DBDriver {
+	case "postgres":
+		dialector = postgres.Open(cfg.DBDSN)
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s", cfg.DBDriver)
+	}
+
+	db, err := gorm.Open(dialector, &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect database: %w", err)
+	}
+
+	portfolioRepo := persistence.NewGormRepository(db)
+	if err := portfolioRepo.AutoMigrate(); err != nil {
+		return nil, fmt.Errorf("failed to migrate database: %w", err)
+	}
+
+	return portfolioRepo, nil
+}
+
+// buildServer creates and configures the HTTP server with all routes and handlers
+func buildServer(cfg *config.Config, portfolioService *application.PortfolioService) *http.Server {
+	router := gin.Default()
+	handler := httpHandler.NewHandler(portfolioService)
+	httpHandler.SetupRoutes(router, handler)
+
+	server := &http.Server{
+		Addr:    fmt.Sprintf("%s:%s", cfg.ServerHost, cfg.ServerPort),
+		Handler: router,
+	}
+
+	return server
+}
+
+func main() {
+	setupLogger()
 
 	if err := godotenv.Load(); err != nil {
 		slog.Warn("No .env file found, using environment variables")
@@ -43,36 +87,13 @@ func main() {
 
 	marketDataClient := twelvedata.NewClient(cfg.TwelveDataAPIKey)
 
-	// Database Setup
-	var dialector gorm.Dialector
-
-	switch cfg.DBDriver {
-	case "postgres":
-		dialector = postgres.Open(cfg.DBDSN)
-	default:
-		log.Fatalf("Unsupported database driver: %s", cfg.DBDriver)
-	}
-
-	db, err := gorm.Open(dialector, &gorm.Config{})
+	repo, err := initializeDatabase(cfg)
 	if err != nil {
-		slog.Error("failed to connect database", "error", err)
+		slog.Error("database initialization failed", "error", err)
 		os.Exit(1)
 	}
-
-	// Initialize Repository
-	portfolioRepo := persistence.NewGormRepository(db)
-	if err := portfolioRepo.AutoMigrate(); err != nil {
-		slog.Error("failed to migrate database", "error", err)
-		os.Exit(1)
-	}
-
-	// For compatibility, if the interface expects domain.PortfolioRepository,
-	// NewGormRepository returns *GormRepository which implements it.
-	// Cast explicitly if needed, but Go interface satisfaction is implicit.
-	var repo domain.PortfolioRepository = portfolioRepo
 
 	portfolioService, err := application.NewPortfolioService(repo, marketDataClient)
-
 	if err != nil {
 		slog.Error("failed to create portfolio service", "error", err)
 		os.Exit(1)
@@ -84,18 +105,11 @@ func main() {
 	priceUpdater := application.NewPriceUpdater(portfolioService, cfg.PriceRefreshInterval)
 	go priceUpdater.Start(ctx)
 
-	router := gin.Default()
-	handler := httpHandler.NewHandler(portfolioService)
-	httpHandler.SetupRoutes(router, handler)
-
-	server := &http.Server{
-		Addr:    fmt.Sprintf("%s:%s", cfg.ServerHost, cfg.ServerPort),
-		Handler: router,
-	}
+	server := buildServer(cfg, portfolioService)
 
 	go func() {
 		slog.Info("Server starting", "host", cfg.ServerHost, "port", cfg.ServerPort)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("Failed to start server", "error", err)
 			os.Exit(1)
 		}

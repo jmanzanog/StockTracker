@@ -47,7 +47,9 @@ func (s *PortfolioService) AddPosition(ctx context.Context, isin string, investe
 		return nil, fmt.Errorf("failed to parse quote price: %w", err)
 	}
 
-	position.UpdatePrice(price)
+	if err := position.UpdatePrice(price); err != nil {
+		return nil, fmt.Errorf("failed to update position price: %w", err)
+	}
 
 	if err := s.defaultPortfolio.AddPosition(position); err != nil {
 		return nil, fmt.Errorf("failed to add position: %w", err)
@@ -102,7 +104,9 @@ func (s *PortfolioService) RefreshPrices(ctx context.Context) error {
 			return fmt.Errorf("failed to parse quote price for %s: %w", pos.Instrument.Symbol, err)
 		}
 
-		pos.UpdatePrice(price)
+		if err := pos.UpdatePrice(price); err != nil {
+			return fmt.Errorf("failed to update price for %s: %w", pos.Instrument.Symbol, err)
+		}
 	}
 
 	if err := s.repo.Save(ctx, s.defaultPortfolio); err != nil {

@@ -84,14 +84,38 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 		return
 	}
 
+	totalValue, err := portfolio.TotalValue()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	totalInvested, err := portfolio.TotalInvested()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	totalProfitLoss, err := portfolio.TotalProfitLoss()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	totalProfitLossPercent, err := portfolio.TotalProfitLossPercent()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
 	summary := map[string]interface{}{
 		"id":                        portfolio.ID,
 		"name":                      portfolio.Name,
 		"positions":                 portfolio.Positions,
-		"total_value":               portfolio.TotalValue(),
-		"total_invested":            portfolio.TotalInvested(),
-		"total_profit_loss":         portfolio.TotalProfitLoss(),
-		"total_profit_loss_percent": portfolio.TotalProfitLossPercent(),
+		"total_value":               totalValue,
+		"total_invested":            totalInvested,
+		"total_profit_loss":         totalProfitLoss,
+		"total_profit_loss_percent": totalProfitLossPercent,
 		"created_at":                portfolio.CreatedAt,
 	}
 
