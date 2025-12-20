@@ -32,5 +32,14 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+  oracle:
+    image: gvenzl/oracle-free:23.3-slim-faststart
+    container_name: stock-oracle
+    environment:
+      - ORACLE_PASSWORD=password
+    ports:
+      - "1521:1521"
+    restart: unless-stopped
+
 volumes:
   postgres_data:

@@ -49,7 +49,7 @@ func TestInitializeDatabase_Success(t *testing.T) {
 
 	// Start PostgreSQL container
 	pgContainer, err := postgres.Run(ctx,
-		"postgres:16-alpine",
+		"postgres:18-alpine",
 		postgres.WithDatabase("testdb"),
 		postgres.WithUsername("testuser"),
 		postgres.WithPassword("testpass"),
@@ -273,7 +273,7 @@ func TestFullInitializationFlow(t *testing.T) {
 
 	// Start PostgreSQL container
 	pgContainer, err := postgres.Run(ctx,
-		"postgres:16-alpine",
+		"postgres:18-alpine",
 		postgres.WithDatabase("testdb"),
 		postgres.WithUsername("testuser"),
 		postgres.WithPassword("testpass"),
