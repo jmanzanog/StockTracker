@@ -2,6 +2,7 @@ package domain
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 )
 
@@ -452,4 +453,16 @@ func mustDecimalFromString(s string) Decimal {
 		panic(err)
 	}
 	return d
+}
+
+func TestDecimal_Round_Overflow(t *testing.T) {
+	d := NewDecimalFromInt(123)
+	_, err := d.Round(math.MinInt32)
+	if err == nil {
+		t.Error("expected error when places is MinInt32, got nil")
+	}
+	expectedErr := "decimal places too small"
+	if err.Error() != expectedErr {
+		t.Errorf("expected error message '%s', got '%s'", expectedErr, err.Error())
+	}
 }
