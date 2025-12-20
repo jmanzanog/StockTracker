@@ -14,20 +14,20 @@ type MockRepository struct {
 	portfolio *domain.Portfolio
 }
 
-func (m *MockRepository) Save(ctx context.Context, p *domain.Portfolio) error {
+func (m *MockRepository) Save(_ context.Context, p *domain.Portfolio) error {
 	m.portfolio = p
 	return nil
 }
 
-func (m *MockRepository) FindByID(ctx context.Context, id string) (*domain.Portfolio, error) {
+func (m *MockRepository) FindByID(_ context.Context, _ string) (*domain.Portfolio, error) {
 	return m.portfolio, nil
 }
 
-func (m *MockRepository) FindAll(ctx context.Context) ([]*domain.Portfolio, error) {
+func (m *MockRepository) FindAll(_ context.Context) ([]*domain.Portfolio, error) {
 	return []*domain.Portfolio{m.portfolio}, nil
 }
 
-func (m *MockRepository) Delete(ctx context.Context, id string) error {
+func (m *MockRepository) Delete(_ context.Context, _ string) error {
 	return nil
 }
 

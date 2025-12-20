@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
@@ -75,18 +76,22 @@ func (s *PortfolioService) RemovePosition(ctx context.Context, positionID string
 }
 
 func (s *PortfolioService) GetPosition(ctx context.Context, positionID string) (*domain.Position, error) {
+	slog.DebugContext(ctx, "getting position", "position_id", positionID)
 	position, err := s.defaultPortfolio.GetPosition(positionID)
 	if err != nil {
+		slog.ErrorContext(ctx, "failed to get position", "position_id", positionID, "error", err)
 		return nil, fmt.Errorf("failed to get position: %w", err)
 	}
 	return position, nil
 }
 
 func (s *PortfolioService) ListPositions(ctx context.Context) ([]domain.Position, error) {
+	slog.DebugContext(ctx, "listing positions", "count", len(s.defaultPortfolio.Positions))
 	return s.defaultPortfolio.Positions, nil
 }
 
 func (s *PortfolioService) GetPortfolioSummary(ctx context.Context) (*domain.Portfolio, error) {
+	slog.DebugContext(ctx, "getting portfolio summary", "portfolio_id", s.defaultPortfolio.ID)
 	return s.defaultPortfolio, nil
 }
 

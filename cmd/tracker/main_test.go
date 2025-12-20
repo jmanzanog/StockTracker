@@ -146,8 +146,14 @@ func TestInitializeDatabase_InvalidDSN(t *testing.T) {
 func TestBuildServer(t *testing.T) {
 	// Suppress Gin debug output during test
 	gin := os.Getenv("GIN_MODE")
-	os.Setenv("GIN_MODE", "release")
-	defer os.Setenv("GIN_MODE", gin)
+	if err := os.Setenv("GIN_MODE", "release"); err != nil {
+		t.Fatalf("failed to set GIN_MODE: %v", err)
+	}
+	defer func() {
+		if err := os.Setenv("GIN_MODE", gin); err != nil {
+			t.Logf("failed to restore GIN_MODE: %v", err)
+		}
+	}()
 
 	// Create a mock repository
 	mockRepo := &mockPortfolioRepository{}
@@ -194,8 +200,14 @@ func TestBuildServer(t *testing.T) {
 func TestBuildServer_DifferentPorts(t *testing.T) {
 	// Suppress Gin debug output during test
 	gin := os.Getenv("GIN_MODE")
-	os.Setenv("GIN_MODE", "release")
-	defer os.Setenv("GIN_MODE", gin)
+	if err := os.Setenv("GIN_MODE", "release"); err != nil {
+		t.Fatalf("failed to set GIN_MODE: %v", err)
+	}
+	defer func() {
+		if err := os.Setenv("GIN_MODE", gin); err != nil {
+			t.Logf("failed to restore GIN_MODE: %v", err)
+		}
+	}()
 
 	testCases := []struct {
 		name string
@@ -246,19 +258,19 @@ func TestBuildServer_DifferentPorts(t *testing.T) {
 // mockPortfolioRepository is a minimal mock implementation for testing
 type mockPortfolioRepository struct{}
 
-func (m *mockPortfolioRepository) Save(ctx context.Context, portfolio *domain.Portfolio) error {
+func (m *mockPortfolioRepository) Save(_ context.Context, _ *domain.Portfolio) error {
 	return nil
 }
 
-func (m *mockPortfolioRepository) FindByID(ctx context.Context, id string) (*domain.Portfolio, error) {
+func (m *mockPortfolioRepository) FindByID(_ context.Context, _ string) (*domain.Portfolio, error) {
 	return nil, fmt.Errorf("portfolio not found")
 }
 
-func (m *mockPortfolioRepository) FindAll(ctx context.Context) ([]*domain.Portfolio, error) {
+func (m *mockPortfolioRepository) FindAll(_ context.Context) ([]*domain.Portfolio, error) {
 	return []*domain.Portfolio{}, nil
 }
 
-func (m *mockPortfolioRepository) Delete(ctx context.Context, id string) error {
+func (m *mockPortfolioRepository) Delete(_ context.Context, _ string) error {
 	return nil
 }
 
@@ -282,8 +294,9 @@ func BenchmarkSetupLogger(b *testing.B) {
 	}
 }
 
-// Example demonstrating how to use the extracted functions
-func ExamplesetupLogger() {
+// exampleSetupLogger demonstrates how to use the extracted functions
+// Note: This is not an exported Example function to avoid linting warnings
+func exampleSetupLogger() {
 	logger := setupLogger()
 	logger.Info("application started", "version", "1.0.0")
 	// Output is to stdout, so we can't easily test it in an Example
