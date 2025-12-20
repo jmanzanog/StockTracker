@@ -16,16 +16,35 @@ type PortfolioService struct {
 }
 
 func NewPortfolioService(repo domain.PortfolioRepository, marketData marketdata.MDataProvider) (*PortfolioService, error) {
-	defaultPortfolio := domain.NewPortfolio("default")
-	// Use background context for initialization since there's no request context yet
-	if err := repo.Save(context.Background(), &defaultPortfolio); err != nil {
-		return nil, fmt.Errorf("failed to save default portfolio: %w", err)
+	ctx := context.Background()
+
+	// Try to find an existing "default" portfolio to avoid creating duplicates on restart
+	portfolios, err := repo.FindAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list portfolios: %w", err)
+	}
+
+	var defaultPortfolio *domain.Portfolio
+	for _, p := range portfolios {
+		if p.Name == "default" {
+			defaultPortfolio = p
+			break
+		}
+	}
+
+	// If not found, create a new one
+	if defaultPortfolio == nil {
+		newP := domain.NewPortfolio("default")
+		defaultPortfolio = &newP
+		if err := repo.Save(ctx, defaultPortfolio); err != nil {
+			return nil, fmt.Errorf("failed to save default portfolio: %w", err)
+		}
 	}
 
 	return &PortfolioService{
 		repo:             repo,
 		marketData:       marketData,
-		defaultPortfolio: &defaultPortfolio,
+		defaultPortfolio: defaultPortfolio,
 	}, nil
 }
 

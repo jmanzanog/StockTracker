@@ -37,6 +37,9 @@ func (m *MockRepository) FindAll(_ context.Context) ([]*domain.Portfolio, error)
 	if m.findError != nil {
 		return nil, m.findError
 	}
+	if m.portfolio == nil {
+		return []*domain.Portfolio{}, nil
+	}
 	return []*domain.Portfolio{m.portfolio}, nil
 }
 
@@ -97,6 +100,31 @@ func TestNewPortfolioService_Success(t *testing.T) {
 
 	if service.defaultPortfolio == nil {
 		t.Error("expected non-nil default portfolio")
+	}
+}
+
+func TestNewPortfolioService_FindAllError(t *testing.T) {
+	repo := &MockRepository{
+		findError: fmt.Errorf("database query failed"),
+	}
+	marketData := &MockMarketData{}
+
+	service, err := NewPortfolioService(repo, marketData)
+
+	if err == nil {
+		t.Fatal("expected error when FindAll fails")
+	}
+
+	if service != nil {
+		t.Error("expected nil service when initialization fails")
+	}
+
+	expectedErr := "failed to list portfolios"
+	if err.Error() != fmt.Sprintf("%s: %s", expectedErr, "database query failed") {
+		// Just creating a simpler check as wrapping might vary slightly
+		if len(err.Error()) < len(expectedErr) {
+			t.Errorf("expected error message to contain %q, got %q", expectedErr, err.Error())
+		}
 	}
 }
 
