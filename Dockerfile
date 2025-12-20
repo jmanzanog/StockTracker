@@ -1,17 +1,26 @@
-FROM golang:1.23-alpine
+FROM --platform=$BUILDPLATFORM golang:1.25.5-alpine AS builder
+WORKDIR /src
 
-WORKDIR /app
-
-# Copy dependencies first for caching layers
+# deps (cache-friendly)
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
+# source
 COPY . .
 
+# build per target platform (no QEMU needed for compile)
+ARG TARGETOS
+ARG TARGETARCH
 ENV CGO_ENABLED=0
-RUN go build -o stock-tracker ./cmd/tracker/main.go
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" \
+    -o /out/stock-tracker ./cmd/tracker/main.go
 
+# final image: tiny + certs for HTTPS
+FROM scratch
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /out/stock-tracker /stock-tracker
+
+USER 65532:65532
 EXPOSE 8080
-
-CMD ["./stock-tracker"]
+ENTRYPOINT ["/stock-tracker"]
