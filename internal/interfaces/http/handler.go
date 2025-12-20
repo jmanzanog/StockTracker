@@ -1,18 +1,28 @@
 package http
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 )
 
-type Handler struct {
-	portfolioService *application.PortfolioService
+// PortfolioService defines the interface for portfolio operations
+type PortfolioService interface {
+	AddPosition(ctx context.Context, isin string, amount domain.Decimal, currency string) (*domain.Position, error)
+	RemovePosition(ctx context.Context, id string) error
+	GetPosition(ctx context.Context, id string) (*domain.Position, error)
+	ListPositions(ctx context.Context) ([]domain.Position, error)
+	GetPortfolioSummary(ctx context.Context) (*domain.Portfolio, error)
+	RefreshPrices(ctx context.Context) error
 }
 
-func NewHandler(portfolioService *application.PortfolioService) *Handler {
+type Handler struct {
+	portfolioService PortfolioService
+}
+
+func NewHandler(portfolioService PortfolioService) *Handler {
 	return &Handler{
 		portfolioService: portfolioService,
 	}
