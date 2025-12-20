@@ -294,14 +294,6 @@ func BenchmarkSetupLogger(b *testing.B) {
 	}
 }
 
-// exampleSetupLogger demonstrates how to use the extracted functions
-// Note: This is not an exported Example function to avoid linting warnings
-func exampleSetupLogger() {
-	logger := setupLogger()
-	logger.Info("application started", "version", "1.0.0")
-	// Output is to stdout, so we can't easily test it in an Example
-}
-
 // Integration test helper to create a test database configuration
 func createTestDBConfig(t *testing.T) (*config.Config, func()) {
 	t.Helper()
