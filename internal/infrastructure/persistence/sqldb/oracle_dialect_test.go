@@ -13,7 +13,9 @@ import (
 func TestOracleDialect_UpsertPortfolio_QueryGeneration(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	dialect := &OracleDialect{}
 
@@ -50,7 +52,9 @@ func TestOracleDialect_UpsertPortfolio_QueryGeneration(t *testing.T) {
 func TestOracleDialect_UpsertInstrument_QueryGeneration(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	dialect := &OracleDialect{}
 	inst := domain.NewInstrument("US123", "AAPL", "Apple", "stock", "USD", "NASDAQ")
@@ -83,7 +87,9 @@ func TestOracleDialect_UpsertInstrument_QueryGeneration(t *testing.T) {
 func TestOracleDialect_UpsertPosition_QueryGeneration(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	dialect := &OracleDialect{}
 
