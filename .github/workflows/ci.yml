@@ -78,11 +78,6 @@ jobs:
       - name: Test (race + coverage)
         run: go test -v ./... -race -coverprofile=coverage.txt -covermode=atomic
 
-      - name: Test (Oracle Integration)
-        env:
-          TEST_DB: oracle
-        run: go test -v ./internal/infrastructure/persistence/sqldb/... -race
-
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:

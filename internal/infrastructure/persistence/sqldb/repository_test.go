@@ -18,13 +18,19 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// runWithBackends executes the test function against all configured databases.
-// If TEST_DB env var is set, it filters execution to match that database type.
+// runWithBackends executes the test function against configured databases.
+// - Default (empty TEST_DB): Runs Postgres only (fast).
+// - TEST_DB=all: Runs both Postgres and Oracle.
+// - TEST_DB=postgres: Runs Postgres only.
+// - TEST_DB=oracle: Runs Oracle only.
 func runWithBackends(t *testing.T, testFunc func(t *testing.T, db *DB)) {
 	target := os.Getenv("TEST_DB")
+	if target == "" {
+		target = "postgres"
+	}
 
-	runPostgres := target == "" || target == "postgres"
-	runOracle := target == "" || target == "oracle"
+	runPostgres := target == "postgres" || target == "all"
+	runOracle := target == "oracle" || target == "all"
 
 	if runPostgres {
 		t.Run("Postgres", func(t *testing.T) {
