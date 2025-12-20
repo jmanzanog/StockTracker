@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -73,7 +72,30 @@ func buildServer(cfg *config.Config, portfolioService *application.PortfolioServ
 	return server
 }
 
-func main() {
+// App wraps the application components for easier testing
+type App struct {
+	Server        *http.Server
+	PriceUpdater  *application.PriceUpdater
+	CancelContext context.CancelFunc
+}
+
+// Shutdown gracefully shuts down the application
+func (a *App) Shutdown(ctx context.Context) error {
+	slog.Info("Shutting down application...")
+
+	a.PriceUpdater.Stop()
+	a.CancelContext()
+
+	if err := a.Server.Shutdown(ctx); err != nil {
+		return fmt.Errorf("server shutdown error: %w", err)
+	}
+
+	return nil
+}
+
+// run contains the main application logic without os.Exit calls
+// This makes it testeable
+func run() error {
 	setupLogger()
 
 	if err := godotenv.Load(); err != nil {
@@ -82,21 +104,19 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	marketDataClient := twelvedata.NewClient(cfg.TwelveDataAPIKey)
 
 	repo, err := initializeDatabase(cfg)
 	if err != nil {
-		slog.Error("database initialization failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("database initialization failed: %w", err)
 	}
 
 	portfolioService, err := application.NewPortfolioService(repo, marketDataClient)
 	if err != nil {
-		slog.Error("failed to create portfolio service", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to create portfolio service: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,30 +127,48 @@ func main() {
 
 	server := buildServer(cfg, portfolioService)
 
+	// Create app wrapper
+	app := &App{
+		Server:        server,
+		PriceUpdater:  priceUpdater,
+		CancelContext: cancel,
+	}
+
+	// Start server in goroutine
+	serverErrors := make(chan error, 1)
 	go func() {
 		slog.Info("Server starting", "host", cfg.ServerHost, "port", cfg.ServerPort)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("Failed to start server", "error", err)
-			os.Exit(1)
+			serverErrors <- err
 		}
 	}()
 
+	// Wait for termination signal or server error
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
 
-	slog.Info("Shutting down server...")
+	select {
+	case err := <-serverErrors:
+		return fmt.Errorf("server error: %w", err)
+	case <-quit:
+		slog.Info("Received shutdown signal")
+	}
 
-	priceUpdater.Stop()
-	cancel()
-
+	// Graceful shutdown
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		slog.Error("Server forced to shutdown", "error", err)
-		os.Exit(1)
+	if err := app.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("shutdown failed: %w", err)
 	}
 
-	slog.Info("Server exited")
+	slog.Info("Server exited gracefully")
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		slog.Error("Application error", "error", err)
+		os.Exit(1)
+	}
 }
