@@ -21,7 +21,7 @@ func (d *PostgresDialect) Migrate(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("setting dialect: %w", err)
 	}
 
-	if err := goose.Up(db, "postgres"); err != nil {
+	if err := goose.UpContext(ctx, db, "postgres"); err != nil {
 		return fmt.Errorf("running migrations: %w", err)
 	}
 
