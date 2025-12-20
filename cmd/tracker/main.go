@@ -82,8 +82,9 @@ func buildServer(cfg *config.Config, portfolioService *application.PortfolioServ
 	httpHandler.SetupRoutes(router, handler)
 
 	server := &http.Server{
-		Addr:    fmt.Sprintf("%s:%s", cfg.ServerHost, cfg.ServerPort),
-		Handler: router,
+		Addr:              fmt.Sprintf("%s:%s", cfg.ServerHost, cfg.ServerPort),
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	return server

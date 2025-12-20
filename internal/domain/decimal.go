@@ -4,6 +4,8 @@ import (
 	"database/sql/driver"
 	"fmt"
 
+	"math"
+
 	"github.com/cockroachdb/apd/v3"
 )
 
@@ -149,6 +151,9 @@ func (d *Decimal) UnmarshalJSON(data []byte) error {
 
 // Round rounds the decimal to the specified number of places.
 func (d Decimal) Round(places int32) (Decimal, error) {
+	if places == math.MinInt32 {
+		return Zero, fmt.Errorf("decimal places too small")
+	}
 	res := Decimal{}
 	// Create a context for rounding
 	ctx := apd.BaseContext.WithPrecision(20)
