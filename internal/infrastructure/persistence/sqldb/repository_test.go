@@ -88,9 +88,7 @@ func setupOracle(t *testing.T) *DB {
 		t.Fatalf("failed to start oracle container: %s", err)
 	}
 	t.Cleanup(func() {
-		if err := c.Terminate(ctx); err != nil {
-			t.Logf("failed to terminate container: %v", err)
-		}
+		c.Terminate(ctx)
 	})
 
 	port, err := c.MappedPort(ctx, "1521")
