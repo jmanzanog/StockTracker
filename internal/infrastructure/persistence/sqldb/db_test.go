@@ -13,9 +13,7 @@ import (
 func TestDB_WithTx_Commit(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
-	defer func() {
-		_ = db.Close()
-	}()
+	defer db.Close()
 
 	wrapper := New(db, &PostgresDialect{})
 
@@ -34,9 +32,7 @@ func TestDB_WithTx_Commit(t *testing.T) {
 func TestDB_WithTx_RollbackOnError(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
-	defer func() {
-		_ = db.Close()
-	}()
+	defer db.Close()
 
 	wrapper := New(db, &PostgresDialect{})
 
@@ -56,9 +52,7 @@ func TestDB_WithTx_RollbackOnError(t *testing.T) {
 func TestDB_WithTx_RollbackOnPanic(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
-	defer func() {
-		_ = db.Close()
-	}()
+	defer db.Close()
 
 	wrapper := New(db, &PostgresDialect{})
 
