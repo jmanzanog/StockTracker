@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,15 +13,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/config"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/twelvedata"
-	persistence "github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/gorm"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/sqldb"
 	httpHandler "github.com/jmanzanog/stock-tracker/internal/interfaces/http"
 	"github.com/joho/godotenv"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	_ "github.com/sijms/go-ora/v2"
 )
 
 // setupLogger configures and returns a structured logger with source information
@@ -37,26 +37,40 @@ func setupLogger() *slog.Logger {
 
 // initializeDatabase sets up the database connection and runs migrations
 func initializeDatabase(cfg *config.Config) (domain.PortfolioRepository, error) {
-	var dialector gorm.Dialector
+	var db *sql.DB
+	var dialect sqldb.Dialect
+	var err error
 
 	switch cfg.DBDriver {
 	case "postgres":
-		dialector = postgres.Open(cfg.DBDSN)
+		db, err = sql.Open("pgx", cfg.DBDSN)
+		dialect = &sqldb.PostgresDialect{}
+	case "oracle":
+		db, err = sql.Open("oracle", cfg.DBDSN)
+		dialect = &sqldb.OracleDialect{}
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", cfg.DBDriver)
 	}
 
-	db, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect database: %w", err)
 	}
 
-	portfolioRepo := persistence.NewGormRepository(db)
-	if err := portfolioRepo.AutoMigrate(); err != nil {
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	wrapper := sqldb.New(db, dialect)
+
+	// Run migrations
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := wrapper.Dialect.Migrate(ctx, db); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	return portfolioRepo, nil
+	return sqldb.NewRepository(wrapper), nil
 }
 
 // buildServer creates and configures the HTTP server with all routes and handlers
@@ -73,7 +87,30 @@ func buildServer(cfg *config.Config, portfolioService *application.PortfolioServ
 	return server
 }
 
-func main() {
+// App wraps the application components for easier testing
+type App struct {
+	Server        *http.Server
+	PriceUpdater  *application.PriceUpdater
+	CancelContext context.CancelFunc
+}
+
+// Shutdown gracefully shuts down the application
+func (a *App) Shutdown(ctx context.Context) error {
+	slog.Info("Shutting down application...")
+
+	a.PriceUpdater.Stop()
+	a.CancelContext()
+
+	if err := a.Server.Shutdown(ctx); err != nil {
+		return fmt.Errorf("server shutdown error: %w", err)
+	}
+
+	return nil
+}
+
+// run contains the main application logic without os.Exit calls
+// This makes it testeable
+func run() error {
 	setupLogger()
 
 	if err := godotenv.Load(); err != nil {
@@ -82,21 +119,19 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	marketDataClient := twelvedata.NewClient(cfg.TwelveDataAPIKey)
 
 	repo, err := initializeDatabase(cfg)
 	if err != nil {
-		slog.Error("database initialization failed", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("database initialization failed: %w", err)
 	}
 
 	portfolioService, err := application.NewPortfolioService(repo, marketDataClient)
 	if err != nil {
-		slog.Error("failed to create portfolio service", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to create portfolio service: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,30 +142,48 @@ func main() {
 
 	server := buildServer(cfg, portfolioService)
 
+	// Create app wrapper
+	app := &App{
+		Server:        server,
+		PriceUpdater:  priceUpdater,
+		CancelContext: cancel,
+	}
+
+	// Start server in goroutine
+	serverErrors := make(chan error, 1)
 	go func() {
 		slog.Info("Server starting", "host", cfg.ServerHost, "port", cfg.ServerPort)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("Failed to start server", "error", err)
-			os.Exit(1)
+			serverErrors <- err
 		}
 	}()
 
+	// Wait for termination signal or server error
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
 
-	slog.Info("Shutting down server...")
+	select {
+	case err := <-serverErrors:
+		return fmt.Errorf("server error: %w", err)
+	case <-quit:
+		slog.Info("Received shutdown signal")
+	}
 
-	priceUpdater.Stop()
-	cancel()
-
+	// Graceful shutdown
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		slog.Error("Server forced to shutdown", "error", err)
-		os.Exit(1)
+	if err := app.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("shutdown failed: %w", err)
 	}
 
-	slog.Info("Server exited")
+	slog.Info("Server exited gracefully")
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		slog.Error("Application error", "error", err)
+		os.Exit(1)
+	}
 }

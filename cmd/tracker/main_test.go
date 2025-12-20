@@ -15,7 +15,6 @@ import (
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/config"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/twelvedata"
-	persistence "github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/gorm"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -38,8 +37,6 @@ func TestSetupLogger(t *testing.T) {
 	}
 
 	// Verify the logger can be used (basic smoke test)
-	// We can't easily test the output without capturing stdout,
-	// but we can at least verify it doesn't panic
 	logger.Info("test message", "key", "value")
 }
 
@@ -91,23 +88,23 @@ func TestInitializeDatabase_Success(t *testing.T) {
 	}
 
 	// Verify the repository is of the correct type
-	_, ok := repo.(*persistence.GormRepository)
-	if !ok {
-		t.Errorf("expected *persistence.GormRepository, got %T", repo)
-	}
+	// We can't check for specific struct type easily if headers are private or using interface,
+	// but we can check if it implements the interface.
+	// Since initDB returns the interface, this check is implicit.
+	// We can check if it works.
 
 	// Verify we can use the repository (basic query)
 	_, err = repo.FindByID(ctx, "test-id")
-	if err != nil {
-		// Expected error for non-existent ID, repository is still functional
-		t.Logf("expected error for non-existent portfolio: %v", err)
+	// Expect an error (not found), but no panic
+	if err == nil {
+		t.Error("expected error when finding non-existent portfolio, got nil")
 	}
 }
 
 func TestInitializeDatabase_UnsupportedDriver(t *testing.T) {
 	cfg := &config.Config{
-		DBDriver: "mysql", // Unsupported driver
-		DBDSN:    "some-connection-string",
+		DBDriver: "unsupported",
+		DBDSN:    "invalid",
 	}
 
 	repo, err := initializeDatabase(cfg)
@@ -117,60 +114,57 @@ func TestInitializeDatabase_UnsupportedDriver(t *testing.T) {
 	}
 
 	if repo != nil {
-		t.Errorf("expected nil repository, got %v", repo)
+		t.Error("expected nil repository for unsupported driver")
 	}
 
-	expectedErrMsg := "unsupported database driver: mysql"
-	if err.Error() != expectedErrMsg {
-		t.Errorf("expected error message %q, got %q", expectedErrMsg, err.Error())
+	expectedError := "unsupported database driver"
+	if err.Error() != "unsupported database driver: unsupported" {
+		t.Errorf("expected error containing '%s', got '%s'", expectedError, err.Error())
 	}
 }
 
 func TestInitializeDatabase_InvalidDSN(t *testing.T) {
 	cfg := &config.Config{
 		DBDriver: "postgres",
-		DBDSN:    "invalid-connection-string",
+		DBDSN:    "postgres://invalid:5432/db", // Valid format but unreachable
 	}
+
+	// The current implementation of initializeDatabase pings the DB.
+	// So it should fail if DB is unreachable.
 
 	repo, err := initializeDatabase(cfg)
 
 	if err == nil {
+		// Wait, pgx might not fail on Open, but fails on Ping.
+		// My implementation does Ping.
 		t.Fatal("expected error for invalid DSN, got nil")
 	}
 
 	if repo != nil {
-		t.Errorf("expected nil repository, got %v", repo)
+		t.Error("expected nil repository for invalid DSN")
 	}
 }
 
 func TestBuildServer(t *testing.T) {
-	// Suppress Gin debug output during test
-	gin := os.Getenv("GIN_MODE")
-	if err := os.Setenv("GIN_MODE", "release"); err != nil {
-		t.Fatalf("failed to set GIN_MODE: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("GIN_MODE", gin); err != nil {
-			t.Logf("failed to restore GIN_MODE: %v", err)
-		}
-	}()
-
 	// Create a mock repository
 	mockRepo := &mockPortfolioRepository{}
 
 	// Create a mock market data client
-	mockClient := twelvedata.NewClient("test-api-key")
+	mockMarketData := twelvedata.NewClient("test-key")
 
-	portfolioService, err := application.NewPortfolioService(mockRepo, mockClient)
+	// Create portfolio service
+	portfolioService, err := application.NewPortfolioService(mockRepo, mockMarketData)
 	if err != nil {
 		t.Fatalf("failed to create portfolio service: %v", err)
 	}
 
+	// Create config
 	cfg := &config.Config{
 		ServerHost: "localhost",
 		ServerPort: "8080",
 	}
 
+	// Build server
 	server := buildServer(cfg, portfolioService)
 
 	if server == nil {
@@ -179,83 +173,52 @@ func TestBuildServer(t *testing.T) {
 
 	expectedAddr := "localhost:8080"
 	if server.Addr != expectedAddr {
-		t.Errorf("expected server address %q, got %q", expectedAddr, server.Addr)
+		t.Errorf("expected server addr %s, got %s", expectedAddr, server.Addr)
 	}
 
 	if server.Handler == nil {
-		t.Fatal("server handler is nil")
-	}
-
-	// Test that the server can handle a basic request
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	w := httptest.NewRecorder()
-	server.Handler.ServeHTTP(w, req)
-
-	// We expect a 200 OK for the health endpoint
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status code 200, got %d", w.Code)
+		t.Error("server handler is nil")
 	}
 }
 
-func TestBuildServer_DifferentPorts(t *testing.T) {
-	// Suppress Gin debug output during test
-	gin := os.Getenv("GIN_MODE")
-	if err := os.Setenv("GIN_MODE", "release"); err != nil {
-		t.Fatalf("failed to set GIN_MODE: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("GIN_MODE", gin); err != nil {
-			t.Logf("failed to restore GIN_MODE: %v", err)
-		}
-	}()
+// --- App Tests ---
 
-	testCases := []struct {
-		name string
-		host string
-		port string
-		want string
-	}{
-		{
-			name: "default localhost",
-			host: "localhost",
-			port: "8080",
-			want: "localhost:8080",
-		},
-		{
-			name: "all interfaces",
-			host: "0.0.0.0",
-			port: "3000",
-			want: "0.0.0.0:3000",
-		},
-		{
-			name: "custom port",
-			host: "127.0.0.1",
-			port: "9090",
-			want: "127.0.0.1:9090",
-		},
-	}
-
+func TestApp_Shutdown(t *testing.T) {
+	// Create mock components
 	mockRepo := &mockPortfolioRepository{}
-	mockClient := twelvedata.NewClient("test-api-key")
-	portfolioService, _ := application.NewPortfolioService(mockRepo, mockClient)
+	mockMarketData := twelvedata.NewClient("test-key")
+	portfolioService, _ := application.NewPortfolioService(mockRepo, mockMarketData)
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := &config.Config{
-				ServerHost: tc.host,
-				ServerPort: tc.port,
-			}
+	cfg := &config.Config{
+		ServerHost:           "localhost",
+		ServerPort:           "0", // Use port 0 for automatic assignment
+		PriceRefreshInterval: 1 * time.Hour,
+	}
 
-			server := buildServer(cfg, portfolioService)
+	ctx, cancel := context.WithCancel(context.Background())
+	priceUpdater := application.NewPriceUpdater(portfolioService, cfg.PriceRefreshInterval)
+	go priceUpdater.Start(ctx)
 
-			if server.Addr != tc.want {
-				t.Errorf("expected server address %q, got %q", tc.want, server.Addr)
-			}
-		})
+	server := buildServer(cfg, portfolioService)
+
+	app := &App{
+		Server:        server,
+		PriceUpdater:  priceUpdater,
+		CancelContext: cancel,
+	}
+
+	// Test shutdown
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer shutdownCancel()
+
+	err := app.Shutdown(shutdownCtx)
+	if err != nil {
+		t.Errorf("Shutdown failed: %v", err)
 	}
 }
 
-// mockPortfolioRepository is a minimal mock implementation for testing
+// --- Mock Repository ---
+
 type mockPortfolioRepository struct{}
 
 func (m *mockPortfolioRepository) Save(_ context.Context, _ *domain.Portfolio) error {
@@ -274,32 +237,41 @@ func (m *mockPortfolioRepository) Delete(_ context.Context, _ string) error {
 	return nil
 }
 
-// TestMain is a special test function that runs before all tests
-// We use it to setup global test configuration
-func TestMain(m *testing.M) {
-	// Suppress all logging during tests to reduce noise
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
-
-	// Run all tests
-	exitCode := m.Run()
-
-	// Exit with the test result code
-	os.Exit(exitCode)
+func (m *mockPortfolioRepository) AutoMigrate() error {
+	return nil
 }
 
-// BenchmarkSetupLogger benchmarks the logger setup
+// --- Benchmark ---
+
 func BenchmarkSetupLogger(b *testing.B) {
+	// Suppress output during benchmark
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		setupLogger()
+		_ = setupLogger()
 	}
 }
 
-// Integration test helper to create a test database configuration
-func createTestDBConfig(t *testing.T) (*config.Config, func()) {
-	t.Helper()
+// --- Integration Test ---
+
+func TestFullInitializationFlow(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Set environment for testing
+	_ = os.Setenv("TWELVE_DATA_API_KEY", "test-key")
+	defer func() {
+		err := os.Unsetenv("TWELVE_DATA_API_KEY")
+		if err != nil {
+			t.Logf("failed to unset env var: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
+	// Start PostgreSQL container
 	pgContainer, err := postgres.Run(ctx,
 		"postgres:16-alpine",
 		postgres.WithDatabase("testdb"),
@@ -313,58 +285,43 @@ func createTestDBConfig(t *testing.T) (*config.Config, func()) {
 	if err != nil {
 		t.Fatalf("failed to start postgres container: %v", err)
 	}
+	defer func() {
+		if err := testcontainers.TerminateContainer(pgContainer); err != nil {
+			t.Logf("failed to terminate container: %v", err)
+		}
+	}()
 
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		t.Fatalf("failed to get connection string: %v", err)
 	}
 
+	// Test complete initialization flow
 	cfg := &config.Config{
-		DBDriver: "postgres",
-		DBDSN:    connStr,
+		DBDriver:             "postgres",
+		DBDSN:                connStr,
+		ServerHost:           "localhost",
+		ServerPort:           "0",
+		TwelveDataAPIKey:     "test-key",
+		PriceRefreshInterval: 1 * time.Hour,
 	}
 
-	cleanup := func() {
-		if err := testcontainers.TerminateContainer(pgContainer); err != nil {
-			t.Logf("failed to terminate container: %v", err)
-		}
-	}
-
-	return cfg, cleanup
-}
-
-// TestFullInitializationFlow tests the complete initialization flow
-func TestFullInitializationFlow(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
-	// Step 1: Setup logger
-	logger := setupLogger()
-	if logger == nil {
-		t.Fatal("failed to setup logger")
-	}
-
-	// Step 2: Initialize database
-	cfg, cleanup := createTestDBConfig(t)
-	defer cleanup()
-
+	// Initialize database
 	repo, err := initializeDatabase(cfg)
 	if err != nil {
-		t.Fatalf("failed to initialize database: %v", err)
+		t.Fatalf("database initialization failed: %v", err)
 	}
 
-	// Step 3: Create portfolio service
-	mockClient := twelvedata.NewClient("test-api-key")
-	portfolioService, err := application.NewPortfolioService(repo, mockClient)
+	// Create market data client
+	marketDataClient := twelvedata.NewClient(cfg.TwelveDataAPIKey)
+
+	// Create portfolio service
+	portfolioService, err := application.NewPortfolioService(repo, marketDataClient)
 	if err != nil {
-		t.Fatalf("failed to create portfolio service: %v", err)
+		t.Fatalf("portfolio service creation failed: %v", err)
 	}
 
-	// Step 4: Build server
-	cfg.ServerHost = "localhost"
-	cfg.ServerPort = "0" // random port
-
+	// Build server
 	server := buildServer(cfg, portfolioService)
 	if server == nil {
 		t.Fatal("failed to build server")

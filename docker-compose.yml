@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
 
   db:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     container_name: stock-postgres
     environment:
       - POSTGRES_USER=user
