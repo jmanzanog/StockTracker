@@ -13,6 +13,12 @@ type Decimal struct {
 	apd.Decimal
 }
 
+// Decimal implements methods with both value and pointer receivers.
+// This is intentional:
+// - Pointer receivers (*Decimal) are used for mutation (Scan, UnmarshalJSON).
+// - Value receivers (Decimal) are used for immutable arithmetic operations and serialization (Value, String, MarshalJSON).
+// nolint:recvcheck
+
 // DefaultContext is used for arithmetic operations.
 // We use HighPrecision to ensure accuracy.
 // In a real banking app, you might want to configure this more strictly.

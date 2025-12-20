@@ -13,7 +13,7 @@ type QuoteResult struct {
 	Time     string
 }
 
-type MarketDataProvider interface {
+type MDataProvider interface {
 	SearchByISIN(ctx context.Context, isin string) (*domain.Instrument, error)
 	GetQuote(ctx context.Context, symbol string) (*QuoteResult, error)
 }
