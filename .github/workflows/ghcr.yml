@@ -51,7 +51,7 @@ jobs:
           cache-from: type=gha
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.IMAGE }}:scan
           format: 'table'
@@ -71,3 +71,16 @@ jobs:
             ${{ env.IMAGE }}:sha-${{ github.event.workflow_run.head_sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  cleanup:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Delete untagged images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'stock-tracker'
+          package-type: 'container'
+          delete-only-untagged-versions: 'true'
