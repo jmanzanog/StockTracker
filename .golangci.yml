@@ -2,12 +2,8 @@ linters-settings:
   govet:
     enable:
       - shadow
-  golint:
-    min-confidence: 0.8
   gocyclo:
     min-complexity: 15
-  maligned:
-    suggest-new: true
   dupl:
     threshold: 100
   goconst:
@@ -54,7 +50,6 @@ linters:
     - gocyclo
     - gofmt
     - goimports
-    - revgrep
     - gosec
     - gosimple
     - govet
