@@ -1,6 +1,7 @@
 linters-settings:
   govet:
-    check-shadowing: true
+    enable:
+      - shadow
   golint:
     min-confidence: 0.8
   gocyclo:
@@ -80,6 +81,7 @@ run:
   timeout: 5m
   tests: true
   modules-download-mode: readonly
+  go: "1.25"
 
 issues:
   exclude-use-default: false
