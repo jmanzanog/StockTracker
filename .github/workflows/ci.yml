@@ -44,47 +44,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-build-
 
-      - name: Verify go mod tidy
-        run: |
-          go mod tidy
-          git diff --exit-code
-
-      - name: Security Check (govulncheck)
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
-
-      - name: Security Audit (gosec)
-        uses: securego/gosec@master
-        with:
-          args: ./...
-
-      - name: Check formatting (gofmt)
-        run: |
-          fmt_out=$(gofmt -l .)
-          if [ -n "$fmt_out" ]; then
-            echo "Go files need formatting:"
-            echo "$fmt_out"
-            exit 1
-          fi
-
-      - name: Build
-        run: go build -v ./...
-
-      - name: Lint
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.7.2
-
-      - name: Test (race + coverage)
-        run: go test -v ./... -race -coverprofile=coverage.txt -covermode=atomic
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-      # Dependency update checks (only on PRs)
       - name: Check for dependency updates
         if: github.event_name == 'pull_request'
         id: deps
@@ -172,3 +131,43 @@ jobs:
                 body: body
               });
             }
+
+      - name: Verify go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code
+
+      - name: Security Check (govulncheck)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Security Audit (gosec)
+        uses: securego/gosec@master
+        with:
+          args: ./...
+
+      - name: Check formatting (gofmt)
+        run: |
+          fmt_out=$(gofmt -l .)
+          if [ -n "$fmt_out" ]; then
+            echo "Go files need formatting:"
+            echo "$fmt_out"
+            exit 1
+          fi
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.7.2
+
+      - name: Test (race + coverage)
+        run: go test -v ./... -race -coverprofile=coverage.txt -covermode=atomic
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
