@@ -11,6 +11,7 @@ rules:
     level: warning
     allowed-values: ["true", "false", "on"]
   document-start: disable
+  brackets: disable
   comments:
     level: warning
     min-spaces-from-content: 1
