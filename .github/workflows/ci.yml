@@ -67,13 +67,23 @@ jobs:
             exit 1
           fi
 
+      - name: Lint YAML files (yamllint)
+        run: |
+          pip install yamllint
+          yamllint .
+
+      - name: Lint GitHub Actions (actionlint)
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
       - name: Build
         run: go build -v ./...
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@v6
         with:
-          version: v2.7.2
+          version: latest
 
       - name: Test (race + coverage)
         run: go test -v ./... -race -coverprofile=coverage.txt -covermode=atomic

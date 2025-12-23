@@ -1,0 +1,17 @@
+extends: default
+
+rules:
+  line-length:
+    max: 256
+    level: warning
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  truthy:
+    level: warning
+  comments:
+    level: warning
+    min-spaces-from-content: 1
+
+ignore: |
+  vendor/
