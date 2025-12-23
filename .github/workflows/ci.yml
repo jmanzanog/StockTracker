@@ -49,7 +49,13 @@ jobs:
         id: deps
         run: |
           echo "Checking for direct dependency updates..."
-          UPDATES=$(go list -m -u -f '{{if and .Update (not .Indirect)}}{{.Path}}: {{.Version}} → {{.Update.Version}}{{end}}' all 2>/dev/null | grep -v '^$' || true)
+          # Download modules first to ensure we can check for updates
+          go mod download -x 2>&1 | head -20 || true
+          echo "---"
+          # List all direct dependencies with available updates
+          echo "Checking for updates..."
+          UPDATES=$(go list -m -u -f '{{if and .Update (not .Indirect)}}{{.Path}}: {{.Version}} → {{.Update.Version}}{{end}}' all | grep -v '^$' || true)
+          echo "Updates found: $UPDATES"
           if [ -n "$UPDATES" ]; then
             echo "has_updates=true" >> $GITHUB_OUTPUT
             {
