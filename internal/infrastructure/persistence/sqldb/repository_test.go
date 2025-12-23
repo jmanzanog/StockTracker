@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -368,5 +369,132 @@ func TestRepository_Save_SameInstrument_MultiplePositions(t *testing.T) {
 		found2, _ := repo.FindByID(ctx, p2.ID)
 
 		assert.Equal(t, found1.Positions[0].Instrument.ISIN, found2.Positions[0].Instrument.ISIN)
+	})
+}
+
+// --- Concurrency Tests ---
+// These tests detect deadlock issues that may occur with concurrent writes.
+
+func TestRepository_ConcurrentSaves_SamePortfolio(t *testing.T) {
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
+		ctx := context.Background()
+
+		// Create a portfolio with one position
+		p := domain.NewPortfolio("Concurrent Test Portfolio")
+		inst := domain.NewInstrument("US999", "CONC", "Concurrent Corp", domain.InstrumentTypeStock, "USD", "NYSE")
+		pos := domain.NewPosition(inst, domain.NewDecimalFromInt(100), "USD")
+		_ = pos.UpdatePrice(domain.NewDecimalFromInt(50))
+		_ = p.AddPosition(pos)
+
+		// Initial save
+		err := repo.Save(ctx, &p)
+		assert.NoError(t, err)
+
+		// Sequential saves simulating rapid updates (no data race because sequential)
+		// This tests that the repository can handle rapid sequential saves without deadlock
+		const numUpdates = 5
+		for i := 0; i < numUpdates; i++ {
+			newPrice := domain.NewDecimalFromInt(int64(50 + i))
+			_ = p.Positions[0].UpdatePrice(newPrice)
+
+			err := repo.Save(ctx, &p)
+			assert.NoError(t, err, "Save %d failed", i)
+		}
+
+		// Verify the portfolio was saved correctly
+		found, err := repo.FindByID(ctx, p.ID)
+		assert.NoError(t, err)
+		assert.NotNil(t, found)
+		assert.Equal(t, 1, len(found.Positions))
+	})
+}
+
+func TestRepository_ConcurrentSaves_MultiplePortfolios_SameInstrument(t *testing.T) {
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
+		ctx := context.Background()
+
+		// Shared instrument
+		inst := domain.NewInstrument("SHARE001", "SHARED", "Shared Instrument", domain.InstrumentTypeStock, "USD", "NYSE")
+
+		const numPortfolios = 5
+		errChan := make(chan error, numPortfolios)
+		var wg sync.WaitGroup
+
+		for i := 0; i < numPortfolios; i++ {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+
+				p := domain.NewPortfolio(fmt.Sprintf("Portfolio %d", idx))
+				pos := domain.NewPosition(inst, domain.NewDecimalFromInt(int64(100*idx+100)), "USD")
+				_ = pos.UpdatePrice(domain.NewDecimalFromInt(int64(50 + idx)))
+				_ = p.AddPosition(pos)
+
+				if err := repo.Save(ctx, &p); err != nil {
+					errChan <- err
+				}
+			}(i)
+		}
+
+		// Wait for all goroutines
+		wg.Wait()
+		close(errChan)
+
+		// Check for errors
+		for err := range errChan {
+			t.Fatalf("Concurrent save failed (possible deadlock on shared instrument): %v", err)
+		}
+
+		// Verify all portfolios were saved
+		all, err := repo.FindAll(ctx)
+		assert.NoError(t, err)
+		assert.GreaterOrEqual(t, len(all), numPortfolios)
+	})
+}
+
+func TestRepository_ConcurrentSaves_RapidUpdates(t *testing.T) {
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
+		ctx := context.Background()
+
+		// Create portfolio with multiple positions
+		p := domain.NewPortfolio("Rapid Update Portfolio")
+
+		instruments := []domain.Instrument{
+			domain.NewInstrument("RAPID001", "R1", "Rapid 1", domain.InstrumentTypeStock, "USD", "NYSE"),
+			domain.NewInstrument("RAPID002", "R2", "Rapid 2", domain.InstrumentTypeStock, "USD", "NYSE"),
+			domain.NewInstrument("RAPID003", "R3", "Rapid 3", domain.InstrumentTypeStock, "USD", "NYSE"),
+		}
+
+		for _, inst := range instruments {
+			pos := domain.NewPosition(inst, domain.NewDecimalFromInt(100), "USD")
+			_ = pos.UpdatePrice(domain.NewDecimalFromInt(10))
+			_ = p.AddPosition(pos)
+		}
+
+		// Initial save
+		err := repo.Save(ctx, &p)
+		assert.NoError(t, err)
+
+		// Rapid sequential saves (simulating high-frequency price updates)
+		const numUpdates = 10
+		for i := 0; i < numUpdates; i++ {
+			for j := range p.Positions {
+				newPrice := domain.NewDecimalFromInt(int64(10 + i + j))
+				_ = p.Positions[j].UpdatePrice(newPrice)
+			}
+
+			err := repo.Save(ctx, &p)
+			if err != nil {
+				t.Fatalf("Rapid update %d failed: %v", i, err)
+			}
+		}
+
+		// Verify final state
+		found, err := repo.FindByID(ctx, p.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, len(instruments), len(found.Positions))
 	})
 }

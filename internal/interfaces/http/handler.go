@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -41,12 +42,14 @@ type ErrorResponse struct {
 func (h *Handler) AddPosition(c *gin.Context) {
 	var req AddPositionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		slog.ErrorContext(c.Request.Context(), "Invalid request body", "error", err)
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
 		return
 	}
 
 	position, err := h.portfolioService.AddPosition(c.Request.Context(), req.ISIN, req.InvestedAmount, req.Currency)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "Failed to add position", "isin", req.ISIN, "error", err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -57,6 +60,7 @@ func (h *Handler) AddPosition(c *gin.Context) {
 func (h *Handler) ListPositions(c *gin.Context) {
 	positions, err := h.portfolioService.ListPositions(c.Request.Context())
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "Failed to list positions", "error", err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -69,6 +73,7 @@ func (h *Handler) GetPosition(c *gin.Context) {
 
 	position, err := h.portfolioService.GetPosition(c.Request.Context(), positionID)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "Failed to get position", "position_id", positionID, "error", err)
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -80,6 +85,7 @@ func (h *Handler) DeletePosition(c *gin.Context) {
 	positionID := c.Param("id")
 
 	if err := h.portfolioService.RemovePosition(c.Request.Context(), positionID); err != nil {
+		slog.ErrorContext(c.Request.Context(), "Failed to delete position", "position_id", positionID, "error", err)
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -134,6 +140,7 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 
 func (h *Handler) RefreshPrices(c *gin.Context) {
 	if err := h.portfolioService.RefreshPrices(c.Request.Context()); err != nil {
+		slog.ErrorContext(c.Request.Context(), "Failed to refresh prices", "error", err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
 	}

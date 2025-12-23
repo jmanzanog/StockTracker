@@ -10,12 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestOracleDialect_UpsertPortfolio_QueryGeneration(t *testing.T) {
+func TestOracleDialect_UpsertPortfolio_Insert(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
-	defer func() {
-		_ = db.Close()
-	}()
+	defer func() { _ = db.Close() }()
 
 	dialect := &OracleDialect{}
 
@@ -23,23 +21,18 @@ func TestOracleDialect_UpsertPortfolio_QueryGeneration(t *testing.T) {
 	p.CreatedAt = time.Now()
 	p.LastUpdated = time.Now()
 
-	// ORDER MATTERS:
-	// 1. Begin Transaction
 	mock.ExpectBegin()
 	tx, err := db.Begin()
 	assert.NoError(t, err)
 
-	// 2. Execute Query
-	mock.ExpectExec(`MERGE INTO portfolios p`).
-		WithArgs(
-			p.ID,             // 1
-			p.Name,           // 2
-			sqlmock.AnyArg(), // 3 (LastUpdated)
-			p.ID,             // 4
-			p.Name,           // 5
-			sqlmock.AnyArg(), // 6 (LastUpdated)
-			sqlmock.AnyArg(), // 7 (CreatedAt)
-		).
+	// 1. SELECT COUNT(*) - returns 0 (not exists)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM portfolios WHERE id = :1`).
+		WithArgs(p.ID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	// 2. INSERT
+	mock.ExpectExec(`INSERT INTO portfolios`).
+		WithArgs(p.ID, p.Name, sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	ctx := context.Background()
@@ -49,32 +42,58 @@ func TestOracleDialect_UpsertPortfolio_QueryGeneration(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestOracleDialect_UpsertInstrument_QueryGeneration(t *testing.T) {
+func TestOracleDialect_UpsertPortfolio_Update(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
-	defer func() {
-		_ = db.Close()
-	}()
+	defer func() { _ = db.Close() }()
 
 	dialect := &OracleDialect{}
-	inst := domain.NewInstrument("US123", "AAPL", "Apple", "stock", "USD", "NASDAQ")
 
-	// 1. Begin
+	p := domain.NewPortfolio("Test Portfolio")
+	p.CreatedAt = time.Now()
+	p.LastUpdated = time.Now()
+
 	mock.ExpectBegin()
 	tx, err := db.Begin()
 	assert.NoError(t, err)
 
-	// 2. Exec
-	mock.ExpectExec("MERGE INTO instruments i").
-		WithArgs(
-			inst.ISIN,         // 1
-			inst.ISIN,         // 2
-			inst.Symbol,       // 3
-			inst.Name,         // 4
-			string(inst.Type), // 5
-			inst.Currency,     // 6
-			inst.Exchange,     // 7
-		).
+	// 1. SELECT COUNT(*) - returns 1 (exists)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM portfolios WHERE id = :1`).
+		WithArgs(p.ID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+	// 2. UPDATE
+	mock.ExpectExec(`UPDATE portfolios SET`).
+		WithArgs(p.Name, sqlmock.AnyArg(), p.ID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	ctx := context.Background()
+	err = dialect.UpsertPortfolio(ctx, tx, &p)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOracleDialect_UpsertInstrument_Insert(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	dialect := &OracleDialect{}
+	inst := domain.NewInstrument("US123", "AAPL", "Apple", "stock", "USD", "NASDAQ")
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	assert.NoError(t, err)
+
+	// 1. SELECT COUNT(*) - returns 0 (not exists)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM instruments WHERE isin = :1`).
+		WithArgs(inst.ISIN).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	// 2. INSERT
+	mock.ExpectExec(`INSERT INTO instruments`).
+		WithArgs(inst.ISIN, inst.Symbol, inst.Name, string(inst.Type), inst.Currency, inst.Exchange).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	ctx := context.Background()
@@ -84,12 +103,36 @@ func TestOracleDialect_UpsertInstrument_QueryGeneration(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestOracleDialect_UpsertPosition_QueryGeneration(t *testing.T) {
+func TestOracleDialect_UpsertInstrument_Skip(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
-	defer func() {
-		_ = db.Close()
-	}()
+	defer func() { _ = db.Close() }()
+
+	dialect := &OracleDialect{}
+	inst := domain.NewInstrument("US123", "AAPL", "Apple", "stock", "USD", "NASDAQ")
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	assert.NoError(t, err)
+
+	// 1. SELECT COUNT(*) - returns 1 (already exists, skip insert)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM instruments WHERE isin = :1`).
+		WithArgs(inst.ISIN).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+	// No INSERT expected
+
+	ctx := context.Background()
+	err = dialect.UpsertInstrument(ctx, tx, &inst)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOracleDialect_UpsertPosition_Insert(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer func() { _ = db.Close() }()
 
 	dialect := &OracleDialect{}
 
@@ -97,30 +140,57 @@ func TestOracleDialect_UpsertPosition_QueryGeneration(t *testing.T) {
 	pos := domain.NewPosition(inst, domain.NewDecimalFromInt(100), "USD")
 	pos.PortfolioID = "port-1"
 
-	// 1. Begin
 	mock.ExpectBegin()
 	tx, err := db.Begin()
 	assert.NoError(t, err)
 
-	// 2. Exec
-	mock.ExpectExec("MERGE INTO positions t").
+	// 1. SELECT COUNT(*) - returns 0 (not exists)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM positions WHERE id = :1`).
+		WithArgs(pos.ID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	// 2. INSERT
+	mock.ExpectExec(`INSERT INTO positions`).
 		WithArgs(
-			pos.ID,               // 1
-			pos.InvestedAmount,   // 2
-			pos.Quantity,         // 3
-			pos.CurrentPrice,     // 4
-			sqlmock.AnyArg(),     // 5  (LastUpdated)
-			pos.PortfolioID,      // 6
-			pos.ID,               // 7
-			pos.PortfolioID,      // 8
-			pos.Instrument.ISIN,  // 9
-			pos.InvestedAmount,   // 10
-			pos.InvestedCurrency, // 11
-			pos.Quantity,         // 12
-			pos.CurrentPrice,     // 13
-			sqlmock.AnyArg(),     // 14 (LastUpdated)
+			pos.ID, pos.PortfolioID, pos.Instrument.ISIN,
+			pos.InvestedAmount, pos.InvestedCurrency, pos.Quantity, pos.CurrentPrice, sqlmock.AnyArg(),
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	ctx := context.Background()
+	err = dialect.UpsertPosition(ctx, tx, &pos)
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOracleDialect_UpsertPosition_Update(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	dialect := &OracleDialect{}
+
+	inst := domain.NewInstrument("US123", "AAPL", "Apple", "stock", "USD", "NASDAQ")
+	pos := domain.NewPosition(inst, domain.NewDecimalFromInt(100), "USD")
+	pos.PortfolioID = "port-1"
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	assert.NoError(t, err)
+
+	// 1. SELECT COUNT(*) - returns 1 (exists)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM positions WHERE id = :1`).
+		WithArgs(pos.ID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+	// 2. UPDATE
+	mock.ExpectExec(`UPDATE positions SET`).
+		WithArgs(
+			pos.InvestedAmount, pos.Quantity, pos.CurrentPrice,
+			sqlmock.AnyArg(), pos.PortfolioID, pos.ID,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	ctx := context.Background()
 	err = dialect.UpsertPosition(ctx, tx, &pos)
