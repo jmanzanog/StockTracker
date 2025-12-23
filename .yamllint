@@ -9,6 +9,8 @@ rules:
     indent-sequences: true
   truthy:
     level: warning
+    allowed-values: ["true", "false", "on"]
+  document-start: disable
   comments:
     level: warning
     min-spaces-from-content: 1
