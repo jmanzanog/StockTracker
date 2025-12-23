@@ -62,6 +62,9 @@ jobs:
             if echo "$DIRECT_MODS" | grep -qx "$mod_path"; then
               current=$(echo "$line" | awk '{print $2}')
               latest=$(echo "$line" | awk '{print $3}' | tr -d '[]')
+              
+              echo "Checked $mod_path: using $current (latest: $latest)"
+              
               if [ -n "$latest" ] && [ "$current" != "$latest" ]; then
                 FINAL_LIST="${FINAL_LIST}${mod_path}: ${current} → ${latest}\n"
               fi
