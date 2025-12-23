@@ -1,7 +1,7 @@
 services:
   app:
     # Only start this service if --profile deployment is used
-    profiles: ["deployment"]
+    profiles: [ "deployment" ]
     container_name: stock-tracker
     build:
       context: .
@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
 
   oracle:
-    image: gvenzl/oracle-free:23.3-slim-faststart
+    image: gvenzl/oracle-free:23.6-slim-faststart
     container_name: stock-oracle
     environment:
       - ORACLE_PASSWORD=password
