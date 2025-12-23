@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.25.5"
+  GO_VERSION: "1.23.4"
 
 jobs:
   lint-test:
@@ -49,22 +49,52 @@ jobs:
         id: deps
         run: |
           echo "Checking for direct dependency updates..."
-          # Download modules first to ensure we can check for updates
-          go mod download -x 2>&1 | head -20 || true
-          echo "---"
-          # List all direct dependencies with available updates
-          echo "Checking for updates..."
-          UPDATES=$(go list -m -u -f '{{if and .Update (not .Indirect)}}{{.Path}}: {{.Version}} → {{.Update.Version}}{{end}}' all | grep -v '^$' || true)
-          echo "Updates found: $UPDATES"
-          if [ -n "$UPDATES" ]; then
+          
+          # Debug: ¿Qué versiones ve Go?
+          echo "DEBUG: Current environment:"
+          go version
+          
+          # 1. Obtener la lista de módulos directos (sin // indirect)
+          DIRECT_MODS=$(go list -m -f '{{if not .Indirect}}{{.Path}}{{end}}' all)
+          
+          # 2. Ejecutar list -m -u y procesar manualmente
+          # Forzamos GOPROXY para asegurar que consulte la red
+          echo "DEBUG: Fetching updates from proxy..."
+          RAW_UPDATES=$(GOPROXY=https://proxy.golang.org go list -m -u all 2>/dev/null | grep "\[" || true)
+          
+          echo "--- RAW UPDATES FOUND ---"
+          echo "$RAW_UPDATES"
+          echo "--- END RAW UPDATES ---"
+          
+          FINAL_LIST=""
+          while read -r line; do
+            [ -z "$line" ] && continue
+            
+            # Formato de línea: path version [latest_version]
+            mod_path=$(echo "$line" | awk '{print $1}')
+            
+            # Solo procesar si es una dependencia directa
+            if echo "$DIRECT_MODS" | grep -qx "$mod_path"; then
+              current=$(echo "$line" | awk '{print $2}')
+              latest=$(echo "$line" | awk '{print $3}' | tr -d '[]')
+              
+              if [ -n "$latest" ] && [ "$current" != "$latest" ]; then
+                FINAL_LIST="${FINAL_LIST}${mod_path}: ${current} → ${latest}\n"
+              fi
+            fi
+          done <<< "$RAW_UPDATES"
+
+          if [ -n "$FINAL_LIST" ]; then
             echo "has_updates=true" >> $GITHUB_OUTPUT
             {
               echo "updates<<EOF"
-              echo "$UPDATES"
+              echo -e "$FINAL_LIST"
               echo "EOF"
             } >> $GITHUB_OUTPUT
+            echo "Found updates!"
           else
             echo "has_updates=false" >> $GITHUB_OUTPUT
+            echo "No updates found for direct dependencies."
           fi
 
       - name: Check for Go version update
