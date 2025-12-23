@@ -93,7 +93,7 @@ func setupOracle(t *testing.T) *DB {
 	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
 		// Use a light, fast start image
-		Image:        "gvenzl/oracle-free:23.3-slim-faststart",
+		Image:        "gvenzl/oracle-free:23.6-slim-faststart",
 		ExposedPorts: []string{"1521/tcp"},
 		Env:          map[string]string{"ORACLE_PASSWORD": "password"},
 		WaitingFor:   wait.ForLog("DATABASE IS READY TO USE").WithStartupTimeout(120 * time.Second),
