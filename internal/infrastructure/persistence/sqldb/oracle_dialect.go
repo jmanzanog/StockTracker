@@ -86,6 +86,11 @@ func (d *OracleDialect) UpsertInstrument(ctx context.Context, tx *sql.Tx, i *dom
 			i.ISIN, i.Symbol, i.Name, string(i.Type), i.Currency, i.Exchange,
 		)
 		if err != nil {
+			// ORA-00001: unique constraint violation - another transaction inserted the same row
+			// This is expected in concurrent scenarios, ignore it
+			if strings.Contains(err.Error(), "ORA-00001") {
+				return nil
+			}
 			return fmt.Errorf("inserting instrument: %w", err)
 		}
 	}
