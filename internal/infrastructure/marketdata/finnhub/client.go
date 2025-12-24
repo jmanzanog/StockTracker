@@ -18,6 +18,7 @@ const (
 	defaultBaseURL = "https://finnhub.io/api/v1"
 	searchPath     = "/search"
 	quotePath      = "/quote"
+	profilePath    = "/stock/profile2"
 )
 
 // Client implements the MDataProvider interface using Finnhub API.
@@ -78,6 +79,22 @@ type quoteResponse struct {
 	Timestamp     int64   `json:"t"`  // Timestamp
 }
 
+// profileResponse represents the Finnhub company profile response.
+type profileResponse struct {
+	Country              string  `json:"country"`
+	Currency             string  `json:"currency"`
+	Exchange             string  `json:"exchange"`
+	FinnhubIndustry      string  `json:"finnhubIndustry"`
+	IPO                  string  `json:"ipo"`
+	Logo                 string  `json:"logo"`
+	MarketCapitalization float64 `json:"marketCapitalization"`
+	Name                 string  `json:"name"`
+	Phone                string  `json:"phone"`
+	ShareOutstanding     float64 `json:"shareOutstanding"`
+	Ticker               string  `json:"ticker"`
+	Weburl               string  `json:"weburl"`
+}
+
 // SearchByISIN searches for an instrument by its ISIN.
 func (c *Client) SearchByISIN(ctx context.Context, isin string) (*domain.Instrument, error) {
 	params := url.Values{}
@@ -119,19 +136,77 @@ func (c *Client) SearchByISIN(ctx context.Context, isin string) (*domain.Instrum
 	result := searchResp.Result[0]
 	instrumentType := mapInstrumentType(result.Type)
 
-	// Extract exchange from symbol (e.g., "RR.L" -> "L" for London)
-	exchange := extractExchange(result.Symbol)
+	// Get company profile to obtain currency and exchange
+	profile, err := c.getProfile(ctx, result.Symbol)
+
+	var currency, exchange string
+	if err != nil {
+		// Log warning but continue with extracted exchange (best effort)
+		slog.Warn("failed to get company profile, using fallback values",
+			"symbol", result.Symbol, "error", err)
+		exchange = extractExchange(result.Symbol)
+		currency = "USD" // Default fallback
+	} else {
+		currency = profile.Currency
+		exchange = profile.Exchange
+		// Use profile name if available (usually more complete)
+		if profile.Name != "" {
+			result.Description = profile.Name
+		}
+	}
 
 	instrument := domain.NewInstrument(
 		isin,
 		result.Symbol,
 		result.Description,
 		instrumentType,
-		"", // Currency is not provided by search endpoint
+		currency,
 		exchange,
 	)
 
 	return &instrument, nil
+}
+
+// getProfile fetches the company profile for a symbol.
+func (c *Client) getProfile(ctx context.Context, symbol string) (*profileResponse, error) {
+	params := url.Values{}
+	params.Add("symbol", symbol)
+	params.Add("token", c.apiKey)
+
+	reqURL := fmt.Sprintf("%s%s?%s", c.baseURL, profilePath, params.Encode())
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			slog.Warn("failed to close response body", "error", closeErr, "url", reqURL)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var profileResp profileResponse
+	if err := json.NewDecoder(resp.Body).Decode(&profileResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Check if we got valid data (empty response means symbol not found)
+	if profileResp.Currency == "" {
+		return nil, fmt.Errorf("no profile data found for symbol: %s", symbol)
+	}
+
+	return &profileResp, nil
 }
 
 // GetQuote retrieves the current quote for a symbol.

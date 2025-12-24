@@ -45,25 +45,37 @@ func TestClient_SetBaseURL(t *testing.T) {
 }
 
 func TestClient_SearchByISIN_Success(t *testing.T) {
+	requestCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodGet, r.Method)
-		assert.Equal(t, "/search", r.URL.Path)
-		assert.Equal(t, "GB00B63H8491", r.URL.Query().Get("q"))
-		assert.Equal(t, "test-api-key", r.URL.Query().Get("token"))
-
+		requestCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{
-			"count": 1,
-			"result": [
-				{
-					"description": "ROLLS-ROYCE HOLDINGS PLC",
-					"displaySymbol": "RR.L",
-					"symbol": "RR.L",
-					"type": "Common Stock"
-				}
-			]
-		}`))
+
+		if r.URL.Path == "/search" {
+			assert.Equal(t, http.MethodGet, r.Method)
+			assert.Equal(t, "GB00B63H8491", r.URL.Query().Get("q"))
+			assert.Equal(t, "test-api-key", r.URL.Query().Get("token"))
+			_, _ = w.Write([]byte(`{
+				"count": 1,
+				"result": [
+					{
+						"description": "ROLLS-ROYCE HOLDINGS PLC",
+						"displaySymbol": "RR.L",
+						"symbol": "RR.L",
+						"type": "Common Stock"
+					}
+				]
+			}`))
+		} else if r.URL.Path == "/stock/profile2" {
+			assert.Equal(t, "RR.L", r.URL.Query().Get("symbol"))
+			_, _ = w.Write([]byte(`{
+				"country": "GB",
+				"currency": "GBP",
+				"exchange": "LONDON STOCK EXCHANGE",
+				"name": "Rolls-Royce Holdings plc",
+				"ticker": "RR.L"
+			}`))
+		}
 	}))
 	defer server.Close()
 
@@ -76,26 +88,38 @@ func TestClient_SearchByISIN_Success(t *testing.T) {
 	assert.NotNil(t, instrument)
 	assert.Equal(t, "GB00B63H8491", instrument.ISIN)
 	assert.Equal(t, "RR.L", instrument.Symbol)
-	assert.Equal(t, "ROLLS-ROYCE HOLDINGS PLC", instrument.Name)
+	assert.Equal(t, "Rolls-Royce Holdings plc", instrument.Name) // From profile
 	assert.Equal(t, domain.InstrumentTypeStock, instrument.Type)
-	assert.Equal(t, "L", instrument.Exchange)
+	assert.Equal(t, "GBP", instrument.Currency)                   // From profile
+	assert.Equal(t, "LONDON STOCK EXCHANGE", instrument.Exchange) // From profile
+	assert.Equal(t, 2, requestCount)                              // Both search and profile called
 }
 
 func TestClient_SearchByISIN_ETF(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{
-			"count": 1,
-			"result": [
-				{
-					"description": "VANGUARD S&P 500 ETF",
-					"displaySymbol": "VOO",
-					"symbol": "VOO",
-					"type": "ETF"
-				}
-			]
-		}`))
+
+		if r.URL.Path == "/search" {
+			_, _ = w.Write([]byte(`{
+				"count": 1,
+				"result": [
+					{
+						"description": "VANGUARD S&P 500 ETF",
+						"displaySymbol": "VOO",
+						"symbol": "VOO",
+						"type": "ETF"
+					}
+				]
+			}`))
+		} else if r.URL.Path == "/stock/profile2" {
+			// Return valid profile for ETF
+			_, _ = w.Write([]byte(`{
+				"currency": "USD",
+				"exchange": "NYSE ARCA",
+				"name": "Vanguard S&P 500 ETF"
+			}`))
+		}
 	}))
 	defer server.Close()
 
@@ -107,7 +131,8 @@ func TestClient_SearchByISIN_ETF(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, instrument)
 	assert.Equal(t, domain.InstrumentTypeETF, instrument.Type)
-	assert.Equal(t, "", instrument.Exchange) // No dot in symbol
+	assert.Equal(t, "USD", instrument.Currency)
+	assert.Equal(t, "NYSE ARCA", instrument.Exchange)
 }
 
 func TestClient_SearchByISIN_ETP(t *testing.T) {
@@ -594,4 +619,165 @@ func TestClient_WithCustomHTTPClientTimeout(t *testing.T) {
 	// Should complete without timeout error (50ms sleep < 100ms timeout)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no instrument found for ISIN")
+}
+
+func TestClient_SearchByISIN_ProfileFallback(t *testing.T) {
+	// Test that when profile endpoint fails, fallback values are used
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path == "/search" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{
+				"count": 1,
+				"result": [
+					{
+						"description": "TEST COMPANY",
+						"displaySymbol": "TEST.L",
+						"symbol": "TEST.L",
+						"type": "Common Stock"
+					}
+				]
+			}`))
+		} else if r.URL.Path == "/stock/profile2" {
+			// Profile endpoint fails
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error": "internal server error"}`))
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient("test-api-key")
+	client.SetBaseURL(server.URL)
+
+	instrument, err := client.SearchByISIN(context.Background(), "TEST_ISIN")
+
+	require.NoError(t, err)
+	assert.NotNil(t, instrument)
+	assert.Equal(t, "TEST.L", instrument.Symbol)
+	assert.Equal(t, "USD", instrument.Currency)      // Fallback
+	assert.Equal(t, "L", instrument.Exchange)        // Extracted from symbol
+	assert.Equal(t, "TEST COMPANY", instrument.Name) // Original description kept
+}
+
+func TestClient_SearchByISIN_ProfileEmptyCurrency(t *testing.T) {
+	// Test that when profile returns empty currency, fallback is used
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		if r.URL.Path == "/search" {
+			_, _ = w.Write([]byte(`{
+				"count": 1,
+				"result": [{"description": "Test", "symbol": "TST", "type": "Stock"}]
+			}`))
+		} else if r.URL.Path == "/stock/profile2" {
+			// Profile returns empty currency
+			_, _ = w.Write([]byte(`{"currency": "", "exchange": ""}`))
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient("test-api-key")
+	client.SetBaseURL(server.URL)
+
+	instrument, err := client.SearchByISIN(context.Background(), "TEST_ISIN")
+
+	require.NoError(t, err)
+	assert.NotNil(t, instrument)
+	assert.Equal(t, "USD", instrument.Currency) // Fallback because profile had empty currency
+}
+
+func TestClient_GetProfile_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/stock/profile2", r.URL.Path)
+		assert.Equal(t, "AAPL", r.URL.Query().Get("symbol"))
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"country": "US",
+			"currency": "USD",
+			"exchange": "NASDAQ",
+			"name": "Apple Inc",
+			"ticker": "AAPL",
+			"marketCapitalization": 3000000
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClient("test-api-key")
+	client.SetBaseURL(server.URL)
+
+	profile, err := client.getProfile(context.Background(), "AAPL")
+
+	require.NoError(t, err)
+	assert.NotNil(t, profile)
+	assert.Equal(t, "USD", profile.Currency)
+	assert.Equal(t, "NASDAQ", profile.Exchange)
+	assert.Equal(t, "Apple Inc", profile.Name)
+}
+
+func TestClient_GetProfile_APIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error": "internal server error"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient("test-api-key")
+	client.SetBaseURL(server.URL)
+
+	profile, err := client.getProfile(context.Background(), "AAPL")
+
+	assert.Nil(t, profile)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "API returned status 500")
+}
+
+func TestClient_GetProfile_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{invalid json`))
+	}))
+	defer server.Close()
+
+	client := NewClient("test-api-key")
+	client.SetBaseURL(server.URL)
+
+	profile, err := client.getProfile(context.Background(), "AAPL")
+
+	assert.Nil(t, profile)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode response")
+}
+
+func TestClient_GetProfile_NetworkError(t *testing.T) {
+	client := NewClient("test-api-key")
+	client.SetBaseURL("http://localhost:99999")
+
+	profile, err := client.getProfile(context.Background(), "AAPL")
+
+	assert.Nil(t, profile)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to execute request")
+}
+
+func TestClient_GetProfile_EmptyResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	client := NewClient("test-api-key")
+	client.SetBaseURL(server.URL)
+
+	profile, err := client.getProfile(context.Background(), "UNKNOWN")
+
+	assert.Nil(t, profile)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no profile data found for symbol")
 }
