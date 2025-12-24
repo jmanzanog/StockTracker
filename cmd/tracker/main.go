@@ -17,6 +17,8 @@ import (
 	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/config"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/finnhub"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/twelvedata"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/sqldb"
 	httpHandler "github.com/jmanzanog/stock-tracker/internal/interfaces/http"
@@ -90,6 +92,16 @@ func buildServer(cfg *config.Config, portfolioService *application.PortfolioServ
 	return server
 }
 
+// createMarketDataClient creates the appropriate market data client based on configuration
+func createMarketDataClient(cfg *config.Config) marketdata.MDataProvider {
+	switch cfg.MarketDataProvider {
+	case config.MarketDataProviderFinnhub:
+		return finnhub.NewClient(cfg.FinnhubAPIKey)
+	default:
+		return twelvedata.NewClient(cfg.TwelveDataAPIKey)
+	}
+}
+
 // App wraps the application components for easier testing
 type App struct {
 	Server        *http.Server
@@ -125,7 +137,8 @@ func run() error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	marketDataClient := twelvedata.NewClient(cfg.TwelveDataAPIKey)
+	marketDataClient := createMarketDataClient(cfg)
+	slog.Info("Using market data provider", "provider", cfg.MarketDataProvider)
 
 	repo, err := initializeDatabase(cfg)
 	if err != nil {
