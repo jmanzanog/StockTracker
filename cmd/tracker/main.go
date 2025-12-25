@@ -20,6 +20,7 @@ import (
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/finnhub"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/twelvedata"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/yfinance"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/sqldb"
 	httpHandler "github.com/jmanzanog/stock-tracker/internal/interfaces/http"
 	"github.com/joho/godotenv"
@@ -97,6 +98,8 @@ func createMarketDataClient(cfg *config.Config) marketdata.MDataProvider {
 	switch cfg.MarketDataProvider {
 	case config.MarketDataProviderFinnhub:
 		return finnhub.NewClient(cfg.FinnhubAPIKey)
+	case config.MarketDataProviderYFinance:
+		return yfinance.NewClientWithBaseURL(cfg.YFinanceBaseURL)
 	default:
 		return twelvedata.NewClient(cfg.TwelveDataAPIKey)
 	}
