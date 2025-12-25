@@ -51,7 +51,8 @@ func TestClient_SearchByISIN_Success(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		if r.URL.Path == "/search" {
+		switch r.URL.Path {
+		case "/search":
 			assert.Equal(t, http.MethodGet, r.Method)
 			assert.Equal(t, "GB00B63H8491", r.URL.Query().Get("q"))
 			assert.Equal(t, "test-api-key", r.URL.Query().Get("token"))
@@ -66,7 +67,7 @@ func TestClient_SearchByISIN_Success(t *testing.T) {
 					}
 				]
 			}`))
-		} else if r.URL.Path == "/stock/profile2" {
+		case "/stock/profile2":
 			assert.Equal(t, "RR.L", r.URL.Query().Get("symbol"))
 			_, _ = w.Write([]byte(`{
 				"country": "GB",
@@ -100,7 +101,8 @@ func TestClient_SearchByISIN_ETF(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		if r.URL.Path == "/search" {
+		switch r.URL.Path {
+		case "/search":
 			_, _ = w.Write([]byte(`{
 				"count": 1,
 				"result": [
@@ -112,7 +114,7 @@ func TestClient_SearchByISIN_ETF(t *testing.T) {
 					}
 				]
 			}`))
-		} else if r.URL.Path == "/stock/profile2" {
+		case "/stock/profile2":
 			// Return valid profile for ETF
 			_, _ = w.Write([]byte(`{
 				"currency": "USD",
@@ -626,7 +628,8 @@ func TestClient_SearchByISIN_ProfileFallback(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		if r.URL.Path == "/search" {
+		switch r.URL.Path {
+		case "/search":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{
 				"count": 1,
@@ -639,7 +642,7 @@ func TestClient_SearchByISIN_ProfileFallback(t *testing.T) {
 					}
 				]
 			}`))
-		} else if r.URL.Path == "/stock/profile2" {
+		case "/stock/profile2":
 			// Profile endpoint fails
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(`{"error": "internal server error"}`))
@@ -666,12 +669,13 @@ func TestClient_SearchByISIN_ProfileEmptyCurrency(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		if r.URL.Path == "/search" {
+		switch r.URL.Path {
+		case "/search":
 			_, _ = w.Write([]byte(`{
 				"count": 1,
 				"result": [{"description": "Test", "symbol": "TST", "type": "Stock"}]
 			}`))
-		} else if r.URL.Path == "/stock/profile2" {
+		case "/stock/profile2":
 			// Profile returns empty currency
 			_, _ = w.Write([]byte(`{"currency": "", "exchange": ""}`))
 		}
