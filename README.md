@@ -22,8 +22,8 @@ stock-tracker/
 ├── internal/
 │   ├── domain/              # Pure Business entities and logic
 │   ├── application/         # Use cases and orchestration
-│   ├── infrastructure/      # Adapter Implementations (PostgreSQL, TwelveData)
-│   │   ├── marketdata/      # Market data providers
+│   ├── infrastructure/      # Adapter Implementations (PostgreSQL, Market Data)
+│   │   ├── marketdata/      # Market data providers (TwelveData, Finnhub)
 │   │   ├── persistence/     # GORM Repositories
 │   │   └── config/          # Configuration loading
 │   └── interfaces/          # HTTP Ports (Gin Handlers)
@@ -35,7 +35,9 @@ stock-tracker/
 - **Go 1.22+**
 - **Docker & Docker Compose** (Recommended for full stack)
 - **PostgreSQL 15+** (Or use the Docker container provided)
-- [Twelve Data API Key](https://twelvedata.com/)
+- Market Data API Key (one of the following):
+  - [Twelve Data API Key](https://twelvedata.com/) - Default provider
+  - [Finnhub API Key](https://finnhub.io/) - Alternative provider (60 req/min free tier)
 
 ## Domain Logic
 
@@ -66,7 +68,15 @@ cp .env.example .env
 
 4. Edit `.env` and add your keys:
 ```env
+# Market Data Provider: "twelvedata" (default) or "finnhub"
+MARKET_DATA_PROVIDER=twelvedata
+
+# TwelveData API Key (required if MARKET_DATA_PROVIDER=twelvedata)
 TWELVE_DATA_API_KEY=your_key
+
+# Finnhub API Key (required if MARKET_DATA_PROVIDER=finnhub)
+# FINNHUB_API_KEY=your_key
+
 # Database config is pre-set for local docker dev
 ```
 
@@ -136,7 +146,9 @@ Environment variables (see `.env.example`):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `TWELVE_DATA_API_KEY` | API key for Twelve Data | *required* |
+| `MARKET_DATA_PROVIDER` | Market data provider (`twelvedata` or `finnhub`) | `twelvedata` |
+| `TWELVE_DATA_API_KEY` | API key for Twelve Data (required if provider is twelvedata) | - |
+| `FINNHUB_API_KEY` | API key for Finnhub (required if provider is finnhub) | - |
 | `SERVER_PORT` | HTTP server port | `8080` |
 | `SERVER_HOST` | HTTP server host | `localhost` |
 | `PRICE_REFRESH_INTERVAL` | Auto-refresh interval | `60s` |

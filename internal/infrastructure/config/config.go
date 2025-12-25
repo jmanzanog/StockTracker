@@ -6,8 +6,16 @@ import (
 	"time"
 )
 
+// MarketDataProviderTwelveData is the constant for TwelveData provider.
+const MarketDataProviderTwelveData = "twelvedata"
+
+// MarketDataProviderFinnhub is the constant for Finnhub provider.
+const MarketDataProviderFinnhub = "finnhub"
+
 type Config struct {
 	TwelveDataAPIKey     string
+	FinnhubAPIKey        string
+	MarketDataProvider   string
 	ServerPort           string
 	ServerHost           string
 	PriceRefreshInterval time.Duration
@@ -17,11 +25,6 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	apiKey := os.Getenv("TWELVE_DATA_API_KEY")
-	if apiKey == "" {
-		return nil, fmt.Errorf("TWELVE_DATA_API_KEY environment variable is required")
-	}
-
 	port := getEnvOrDefault("SERVER_PORT", "8080")
 	host := getEnvOrDefault("SERVER_HOST", "localhost")
 	logLevel := getEnvOrDefault("LOG_LEVEL", "info")
@@ -38,8 +41,30 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("DB_DSN environment variable is required")
 	}
 
+	marketDataProvider := getEnvOrDefault("MARKET_DATA_PROVIDER", MarketDataProviderTwelveData)
+
+	// Validate market data provider API key based on selected provider
+	twelveDataAPIKey := os.Getenv("TWELVE_DATA_API_KEY")
+	finnhubAPIKey := os.Getenv("FINNHUB_API_KEY")
+
+	switch marketDataProvider {
+	case MarketDataProviderTwelveData:
+		if twelveDataAPIKey == "" {
+			return nil, fmt.Errorf("TWELVE_DATA_API_KEY environment variable is required when using twelvedata provider")
+		}
+	case MarketDataProviderFinnhub:
+		if finnhubAPIKey == "" {
+			return nil, fmt.Errorf("FINNHUB_API_KEY environment variable is required when using finnhub provider")
+		}
+	default:
+		return nil, fmt.Errorf("unsupported MARKET_DATA_PROVIDER: %s (supported: %s, %s)",
+			marketDataProvider, MarketDataProviderTwelveData, MarketDataProviderFinnhub)
+	}
+
 	return &Config{
-		TwelveDataAPIKey:     apiKey,
+		TwelveDataAPIKey:     twelveDataAPIKey,
+		FinnhubAPIKey:        finnhubAPIKey,
+		MarketDataProvider:   marketDataProvider,
 		ServerPort:           port,
 		ServerHost:           host,
 		PriceRefreshInterval: refreshInterval,

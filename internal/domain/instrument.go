@@ -28,5 +28,5 @@ func NewInstrument(isin, symbol, name string, instrumentType InstrumentType, cur
 }
 
 func (i Instrument) IsValid() bool {
-	return i.ISIN != "" && i.Symbol != "" && i.Currency != ""
+	return i.ISIN != "" && i.Symbol != ""
 }
