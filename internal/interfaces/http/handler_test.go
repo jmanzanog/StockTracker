@@ -234,6 +234,160 @@ func TestHandler_AddPosition_ServiceError(t *testing.T) {
 	}
 }
 
+// --- AddPositionsBatch Tests ---
+
+func TestHandler_AddPositionsBatch_Success(t *testing.T) {
+	mockService := &MockPortfolioService{
+		addPositionsBatchFunc: func(ctx context.Context, requests []application.AddPositionBatchRequest) *application.AddPositionsBatchResult {
+			instrument := domain.NewInstrument(requests[0].ISIN, "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+			position := domain.NewPosition(instrument, requests[0].InvestedAmount, requests[0].Currency)
+
+			return &application.AddPositionsBatchResult{
+				Successful: []application.AddPositionResult{
+					{ISIN: requests[0].ISIN, Position: &position},
+				},
+				Failed: []application.AddPositionResult{},
+			}
+		},
+	}
+
+	handler := NewHandler(mockService)
+	router := setupRouter(handler)
+
+	reqBody := []application.AddPositionBatchRequest{
+		{ISIN: "US0378331005", InvestedAmount: domain.NewDecimalFromInt(1000), Currency: "USD"},
+	}
+	body, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/positions/batch", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status %d, got %d", http.StatusCreated, w.Code)
+	}
+
+	var result application.AddPositionsBatchResult
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if len(result.Successful) != 1 {
+		t.Errorf("expected 1 successful position, got %d", len(result.Successful))
+	}
+}
+
+func TestHandler_AddPositionsBatch_PartialSuccess(t *testing.T) {
+	mockService := &MockPortfolioService{
+		addPositionsBatchFunc: func(ctx context.Context, requests []application.AddPositionBatchRequest) *application.AddPositionsBatchResult {
+			instrument := domain.NewInstrument(requests[0].ISIN, "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+			position := domain.NewPosition(instrument, requests[0].InvestedAmount, requests[0].Currency)
+
+			return &application.AddPositionsBatchResult{
+				Successful: []application.AddPositionResult{
+					{ISIN: requests[0].ISIN, Position: &position},
+				},
+				Failed: []application.AddPositionResult{
+					{ISIN: "INVALID", Error: "instrument not found"},
+				},
+			}
+		},
+	}
+
+	handler := NewHandler(mockService)
+	router := setupRouter(handler)
+
+	reqBody := []application.AddPositionBatchRequest{
+		{ISIN: "US0378331005", InvestedAmount: domain.NewDecimalFromInt(1000), Currency: "USD"},
+		{ISIN: "INVALID", InvestedAmount: domain.NewDecimalFromInt(2000), Currency: "USD"},
+	}
+	body, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/positions/batch", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusMultiStatus {
+		t.Errorf("expected status %d (Multi-Status), got %d", http.StatusMultiStatus, w.Code)
+	}
+
+	var result application.AddPositionsBatchResult
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if len(result.Successful) != 1 || len(result.Failed) != 1 {
+		t.Errorf("expected 1 successful and 1 failed, got %d and %d", len(result.Successful), len(result.Failed))
+	}
+}
+
+func TestHandler_AddPositionsBatch_EmptyArray(t *testing.T) {
+	mockService := &MockPortfolioService{}
+	handler := NewHandler(mockService)
+	router := setupRouter(handler)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/positions/batch", bytes.NewReader([]byte("[]")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestHandler_AddPositionsBatch_InvalidJSON(t *testing.T) {
+	mockService := &MockPortfolioService{}
+	handler := NewHandler(mockService)
+	router := setupRouter(handler)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/positions/batch", bytes.NewReader([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestHandler_AddPositionsBatch_AllFailed(t *testing.T) {
+	mockService := &MockPortfolioService{
+		addPositionsBatchFunc: func(ctx context.Context, requests []application.AddPositionBatchRequest) *application.AddPositionsBatchResult {
+			return &application.AddPositionsBatchResult{
+				Successful: []application.AddPositionResult{},
+				Failed: []application.AddPositionResult{
+					{ISIN: requests[0].ISIN, Error: "failed"},
+				},
+			}
+		},
+	}
+
+	handler := NewHandler(mockService)
+	router := setupRouter(handler)
+
+	reqBody := []application.AddPositionBatchRequest{
+		{ISIN: "US0378331005", InvestedAmount: domain.NewDecimalFromInt(1000), Currency: "USD"},
+	}
+	body, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/positions/batch", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusMultiStatus {
+		t.Errorf("expected status %d, got %d", http.StatusMultiStatus, w.Code)
+	}
+}
+
 // --- ListPositions Tests ---
 
 func TestHandler_ListPositions_Success(t *testing.T) {

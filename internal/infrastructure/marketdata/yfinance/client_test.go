@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
@@ -398,5 +399,298 @@ func TestBodyCloseError(t *testing.T) {
 	_, err = client.GetQuote(context.Background(), "AAPL")
 	if err == nil {
 		t.Log("GetQuote returned nil error (expected decode error)")
+	}
+}
+
+func TestSearchByISINBatch(t *testing.T) {
+	tests := []struct {
+		name           string
+		isins          []string
+		mockResponse   string
+		statusCode     int
+		expectedCount  int
+		expectedErrors int
+		expectFail     bool
+	}{
+		{
+			name:       "Success - Mixed Results",
+			isins:      []string{"US0378331005", "DE0007164600"},
+			statusCode: http.StatusOK,
+			mockResponse: `{
+				"results": [
+					{"isin": "US0378331005", "symbol": "AAPL", "name": "Apple Inc.", "type": "stock", "currency": "USD", "exchange": "NASDAQ"},
+					{"isin": "DE0007164600", "symbol": "SAP", "name": "SAP SE", "type": "stock", "currency": "EUR", "exchange": "XETRA"}
+				],
+				"errors": []
+			}`,
+			expectedCount:  2,
+			expectedErrors: 0,
+		},
+		{
+			name:       "Partial Success",
+			isins:      []string{"US0378331005", "INVALID"},
+			statusCode: http.StatusOK,
+			mockResponse: `{
+				"results": [
+					{"isin": "US0378331005", "symbol": "AAPL", "name": "Apple Inc.", "type": "stock", "currency": "USD", "exchange": "NASDAQ"}
+				],
+				"errors": [
+					{"isin": "INVALID", "error": "Not found"}
+				]
+			}`,
+			expectedCount:  2,
+			expectedErrors: 1,
+		},
+		{
+			name:       "All Failed",
+			isins:      []string{"INVALID1", "INVALID2"},
+			statusCode: http.StatusOK,
+			mockResponse: `{
+				"results": [],
+				"errors": [
+					{"isin": "INVALID1", "error": "Not found"},
+					{"isin": "INVALID2", "error": "Not found"}
+				]
+			}`,
+			expectedCount:  2,
+			expectedErrors: 2,
+		},
+		{
+			name:         "General API Error",
+			isins:        []string{"US0378331005"},
+			statusCode:   http.StatusInternalServerError,
+			mockResponse: `Internal Server Error`,
+			expectFail:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/v1/search/batch" {
+					t.Errorf("Expected path /api/v1/search/batch, got %s", r.URL.Path)
+				}
+				w.WriteHeader(tt.statusCode)
+				w.Write([]byte(tt.mockResponse))
+			}))
+			defer server.Close()
+
+			client := NewClientWithBaseURL(server.URL)
+			results := client.SearchByISINBatch(context.Background(), tt.isins)
+
+			if tt.expectFail {
+				if len(results) != len(tt.isins) {
+					t.Errorf("Expected %d results, got %d", len(tt.isins), len(results))
+				}
+				for _, r := range results {
+					if r.Error == nil {
+						t.Error("Expected error in result, got nil")
+					}
+				}
+				return
+			}
+
+			if len(results) != tt.expectedCount {
+				t.Errorf("Expected %d results, got %d", tt.expectedCount, len(results))
+			}
+
+			actualErrors := 0
+			for _, r := range results {
+				if r.Error != nil {
+					actualErrors++
+				}
+			}
+			if actualErrors != tt.expectedErrors {
+				t.Errorf("Expected %d errors, got %d", tt.expectedErrors, actualErrors)
+			}
+		})
+	}
+}
+
+func TestGetQuoteBatch(t *testing.T) {
+	tests := []struct {
+		name           string
+		symbols        []string
+		mockResponse   string
+		statusCode     int
+		expectedCount  int
+		expectedErrors int
+		expectFail     bool
+	}{
+		{
+			name:       "Success - Mixed Results",
+			symbols:    []string{"AAPL", "SAP"},
+			statusCode: http.StatusOK,
+			mockResponse: `{
+				"results": [
+					{"symbol": "AAPL", "price": "195.5000", "currency": "USD", "time": "2024-01-01"},
+					{"symbol": "SAP", "price": "150.0000", "currency": "EUR", "time": "2024-01-01"}
+				],
+				"errors": []
+			}`,
+			expectedCount:  2,
+			expectedErrors: 0,
+		},
+		{
+			name:       "Partial Success",
+			symbols:    []string{"AAPL", "INVALID"},
+			statusCode: http.StatusOK,
+			mockResponse: `{
+				"results": [
+					{"symbol": "AAPL", "price": "195.5000", "currency": "USD", "time": "2024-01-01"}
+				],
+				"errors": [
+					{"symbol": "INVALID", "error": "Not found"}
+				]
+			}`,
+			expectedCount:  2,
+			expectedErrors: 1,
+		},
+		{
+			name:         "General API Error",
+			symbols:      []string{"AAPL"},
+			statusCode:   http.StatusInternalServerError,
+			mockResponse: `Internal Server Error`,
+			expectFail:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/v1/quote/batch" {
+					t.Errorf("Expected path /api/v1/quote/batch, got %s", r.URL.Path)
+				}
+				w.WriteHeader(tt.statusCode)
+				w.Write([]byte(tt.mockResponse))
+			}))
+			defer server.Close()
+
+			client := NewClientWithBaseURL(server.URL)
+			results := client.GetQuoteBatch(context.Background(), tt.symbols)
+
+			if tt.expectFail {
+				if len(results) != len(tt.symbols) {
+					t.Errorf("Expected %d results, got %d", len(tt.symbols), len(results))
+				}
+				for _, r := range results {
+					if r.Error == nil {
+						t.Error("Expected error in result, got nil")
+					}
+				}
+				return
+			}
+
+			if len(results) != tt.expectedCount {
+				t.Errorf("Expected %d results, got %d", tt.expectedCount, len(results))
+			}
+
+			actualErrors := 0
+			for _, r := range results {
+				if r.Error != nil {
+					actualErrors++
+				}
+			}
+			if actualErrors != tt.expectedErrors {
+				t.Errorf("expected %d errors, got %d", tt.expectedErrors, actualErrors)
+			}
+		})
+	}
+}
+
+func TestSearchByISINBatch_Errors(t *testing.T) {
+	client := NewClient()
+	client.baseURL = "http://market-data-service\x7f" // Bad URL
+
+	results := client.SearchByISINBatch(context.Background(), []string{"US123"})
+	if len(results) != 1 || results[0].Error == nil {
+		t.Error("expected error for SearchByISINBatch with bad URL")
+	}
+
+	// Network error
+	client.baseURL = "http://127.0.0.1:0"
+	results = client.SearchByISINBatch(context.Background(), []string{"US123"})
+	if len(results) != 1 || results[0].Error == nil {
+		t.Error("expected network error for SearchByISINBatch")
+	}
+
+	// Malformed JSON
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{invalid-json`))
+	}))
+	defer server.Close()
+	client.baseURL = server.URL
+	results = client.SearchByISINBatch(context.Background(), []string{"US123"})
+	if len(results) != 1 || results[0].Error == nil {
+		t.Error("expected JSON decode error for SearchByISINBatch")
+	}
+}
+
+func TestGetQuoteBatch_Errors(t *testing.T) {
+	client := NewClient()
+	client.baseURL = "http://market-data-service\x7f" // Bad URL
+
+	results := client.GetQuoteBatch(context.Background(), []string{"AAPL"})
+	if len(results) != 1 || results[0].Error == nil {
+		t.Error("expected error for GetQuoteBatch with bad URL")
+	}
+
+	// Network error
+	client.baseURL = "http://127.0.0.1:0"
+	results = client.GetQuoteBatch(context.Background(), []string{"AAPL"})
+	if len(results) != 1 || results[0].Error == nil {
+		t.Error("expected network error for GetQuoteBatch")
+	}
+
+	// Malformed JSON
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{invalid-json`))
+	}))
+	defer server.Close()
+	client.baseURL = server.URL
+	results = client.GetQuoteBatch(context.Background(), []string{"AAPL"})
+	if len(results) != 1 || results[0].Error == nil {
+		t.Error("expected JSON decode error for GetQuoteBatch")
+	}
+
+	// Status 500
+	server500 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`Internal Error`))
+	}))
+	defer server500.Close()
+	client.baseURL = server500.URL
+	results = client.GetQuoteBatch(context.Background(), []string{"AAPL"})
+	if len(results) != 1 || !strings.Contains(results[0].Error.Error(), "500") {
+		t.Error("expected status 500 error for GetQuoteBatch")
+	}
+
+	// Invalid Price in JSON
+	serverPrice := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"results": [{"symbol": "AAPL", "price": "invalid", "currency": "USD", "time": "2024-01-01"}]}`))
+	}))
+	defer serverPrice.Close()
+	client.baseURL = serverPrice.URL
+	results = client.GetQuoteBatch(context.Background(), []string{"AAPL"})
+	if len(results) != 1 || !strings.Contains(results[0].Error.Error(), "failed to parse price") {
+		t.Error("expected parse price error for GetQuoteBatch")
+	}
+}
+
+func TestSearchByISINBatch_AdditionalErrors(t *testing.T) {
+	client := NewClient()
+
+	// Status 500
+	server500 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server500.Close()
+	client.baseURL = server500.URL
+	results := client.SearchByISINBatch(context.Background(), []string{"US123"})
+	if len(results) != 1 || results[0].Error == nil {
+		t.Error("expected status 500 error for SearchByISINBatch")
 	}
 }

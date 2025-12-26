@@ -297,3 +297,81 @@ func TestAddPositionsBatch_QuoteError(t *testing.T) {
 		t.Errorf("expected 1 failed when quote fails, got %d", len(result.Failed))
 	}
 }
+
+func TestAddPositionsBatch_AddPositionError(t *testing.T) {
+	repo := &MockRepository{}
+	instrument := domain.NewInstrument("US123", "SYMBOL", "Name", domain.InstrumentTypeStock, "USD", "EXCH")
+
+	provider := &mockBatchMarketData{
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
+			return []marketdata.SearchResult{{ISIN: "US123", Instrument: &instrument}}
+		},
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
+			return []marketdata.QuoteBatchResult{{
+				Symbol: "SYMBOL",
+				Quote: &marketdata.QuoteResult{
+					Symbol: "SYMBOL",
+					Price:  domain.NewDecimalFromInt(100),
+				},
+			}}
+		},
+	}
+
+	service, err := NewPortfolioService(repo, provider)
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	// Request with empty currency will make the position invalid
+	requests := []AddPositionBatchRequest{
+		{ISIN: "US123", InvestedAmount: domain.NewDecimalFromInt(1000), Currency: ""},
+	}
+
+	result := service.AddPositionsBatch(context.Background(), requests)
+
+	if len(result.Successful) != 0 {
+		t.Error("expected 0 successful when position is invalid")
+	}
+	if len(result.Failed) != 1 {
+		t.Errorf("expected 1 failed when position is invalid, got %d", len(result.Failed))
+	}
+}
+
+func TestAddPositionsBatch_InvalidPosition(t *testing.T) {
+	repo := &MockRepository{}
+	instrument := domain.NewInstrument("US123", "SYMBOL", "Name", domain.InstrumentTypeStock, "USD", "EXCH")
+
+	provider := &mockBatchMarketData{
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
+			return []marketdata.SearchResult{{ISIN: "US123", Instrument: &instrument}}
+		},
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
+			return []marketdata.QuoteBatchResult{{
+				Symbol: "SYMBOL",
+				Quote: &marketdata.QuoteResult{
+					Symbol: "SYMBOL",
+					Price:  domain.NewDecimalFromInt(100),
+				},
+			}}
+		},
+	}
+
+	service, err := NewPortfolioService(repo, provider)
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	// Invalid request: zero invested amount
+	requests := []AddPositionBatchRequest{
+		{ISIN: "US123", InvestedAmount: domain.Zero, Currency: "USD"},
+	}
+
+	result := service.AddPositionsBatch(context.Background(), requests)
+
+	if len(result.Successful) != 0 {
+		t.Error("expected 0 successful for invalid position")
+	}
+	if len(result.Failed) != 1 {
+		t.Error("expected 1 failed for invalid position")
+	}
+}
