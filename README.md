@@ -6,11 +6,13 @@ A Go-based application for tracking and analyzing financial instruments (ETFs an
 
 - 🔍 **ISIN Lookup**: Search for financial instruments by ISIN code
 - 💰 **Portfolio Management**: Add, remove, and track multiple positions
-- 📊 **Real-time Updates**: Automatic price refresh at configurable intervals
+- � **Batch Operations**: Add multiple positions in a single request with partial failure handling
+- �📊 **Real-time Updates**: Automatic price refresh at configurable intervals
 - 📈 **P/L Tracking**: Calculate profit/loss for individual positions and entire portfolio
 - 🌐 **REST API**: HTTP endpoints for easy integration
 - 🏗️ **Clean Architecture**: Domain-driven design with clear separation of concerns
 - 🐳 **Docker Ready**: Full stack containerization with PostgreSQL
+
 
 ## Architecture
 
@@ -36,9 +38,18 @@ stock-tracker/
 - **Docker & Docker Compose** (Recommended for full stack)
 - **PostgreSQL 15+** (Or use the Docker container provided)
 - Market Data API Key (one of the following):
-  - [Twelve Data API Key](https://twelvedata.com/) - Default provider
+  - [Twelve Data API Key](https://twelvedata.com/) - Default provider (8 credits/min free tier)
   - [Finnhub API Key](https://finnhub.io/) - Alternative provider (60 req/min free tier)
-  - **YFinance Market Data Service** - Self-hosted Python microservice (no API key required)
+  - **YFinance Market Data Service** - Self-hosted Python microservice (no API key required, supports batch)
+
+### Market Data Provider Comparison
+
+| Provider | Batch API | Rate Limits (Free) | Notes |
+|----------|-----------|-------------------|-------|
+| **TwelveData** | ✅ Yes | 8 credits/min, 800/day | Each symbol = 1 credit |
+| **Finnhub** | ❌ No | 60 req/min, 30 req/s | Uses concurrent fallback |
+| **YFinance** | ✅ Yes | Self-hosted (no limit) | Best for batch operations |
+
 
 ## Domain Logic
 
@@ -131,6 +142,33 @@ Content-Type: application/json
   "isin": "US0378331005",
   "invested_amount": "10000",
   "currency": "USD"
+}
+```
+
+### Add Positions (Batch)
+Add multiple positions in a single request. The API uses batch operations when supported by the market data provider (YFinance), or falls back to concurrent processing (Finnhub/TwelveData).
+
+```http
+POST /api/v1/positions/batch
+Content-Type: application/json
+
+[
+  {"isin": "US0378331005", "invested_amount": "10000", "currency": "USD"},
+  {"isin": "IE00B4L5Y983", "invested_amount": "5000", "currency": "EUR"},
+  {"isin": "US5949181045", "invested_amount": "8000", "currency": "USD"}
+]
+```
+
+**Response** (HTTP 201 for success, 207 for partial success):
+```json
+{
+  "successful": [
+    {"isin": "US0378331005", "position": {...}},
+    {"isin": "US5949181045", "position": {...}}
+  ],
+  "failed": [
+    {"isin": "IE00B4L5Y983", "error": "instrument not found"}
+  ]
 }
 ```
 

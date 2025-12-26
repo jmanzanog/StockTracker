@@ -1,6 +1,7 @@
 package yfinance
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,9 +15,11 @@ import (
 )
 
 const (
-	defaultBaseURL = "http://localhost:8000"
-	searchPath     = "/api/v1/search"
-	quotePath      = "/api/v1/quote"
+	defaultBaseURL  = "http://localhost:8000"
+	searchPath      = "/api/v1/search"
+	quotePath       = "/api/v1/quote"
+	searchBatchPath = "/api/v1/search/batch"
+	quoteBatchPath  = "/api/v1/quote/batch"
 )
 
 // Client implements the MDataProvider interface using the yfinance-based Market Data Service.
@@ -198,3 +201,250 @@ func mapInstrumentType(apiType string) domain.InstrumentType {
 		return domain.InstrumentTypeStock
 	}
 }
+
+// Batch request/response types for the yfinance microservice.
+
+// searchBatchRequest is the request body for the batch search endpoint.
+type searchBatchRequest struct {
+	ISINs []string `json:"isins"`
+}
+
+// searchBatchResponse is the response from the batch search endpoint.
+type searchBatchResponse struct {
+	Results []searchResponse   `json:"results"`
+	Errors  []searchBatchError `json:"errors"`
+}
+
+// searchBatchError represents an error for a single ISIN in a batch search.
+type searchBatchError struct {
+	ISIN  string `json:"isin"`
+	Error string `json:"error"`
+}
+
+// quoteBatchRequest is the request body for the batch quote endpoint.
+type quoteBatchRequest struct {
+	Symbols []string `json:"symbols"`
+}
+
+// quoteBatchResponse is the response from the batch quote endpoint.
+type quoteBatchResponse struct {
+	Results []quoteResponse   `json:"results"`
+	Errors  []quoteBatchError `json:"errors"`
+}
+
+// quoteBatchError represents an error for a single symbol in a batch quote.
+type quoteBatchError struct {
+	Symbol string `json:"symbol"`
+	Error  string `json:"error"`
+}
+
+// SearchByISINBatch searches for multiple instruments by their ISINs in a single request.
+// This is more efficient than calling SearchByISIN multiple times.
+func (c *Client) SearchByISINBatch(ctx context.Context, isins []string) []marketdata.SearchResult {
+	results := make([]marketdata.SearchResult, 0, len(isins))
+
+	if len(isins) == 0 {
+		return results
+	}
+
+	reqBody := searchBatchRequest{ISINs: isins}
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		// Return all as errors if we can't marshal the request
+		for _, isin := range isins {
+			results = append(results, marketdata.SearchResult{
+				ISIN:  isin,
+				Error: fmt.Errorf("failed to marshal request: %w", err),
+			})
+		}
+		return results
+	}
+
+	reqURL := fmt.Sprintf("%s%s", c.baseURL, searchBatchPath)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(jsonBody))
+	if err != nil {
+		for _, isin := range isins {
+			results = append(results, marketdata.SearchResult{
+				ISIN:  isin,
+				Error: fmt.Errorf("failed to create request: %w", err),
+			})
+		}
+		return results
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		for _, isin := range isins {
+			results = append(results, marketdata.SearchResult{
+				ISIN:  isin,
+				Error: fmt.Errorf("failed to execute request: %w", err),
+			})
+		}
+		return results
+	}
+
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			slog.Warn("failed to close response body", "error", closeErr, "url", reqURL)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		for _, isin := range isins {
+			results = append(results, marketdata.SearchResult{
+				ISIN:  isin,
+				Error: fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body)),
+			})
+		}
+		return results
+	}
+
+	var batchResp searchBatchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&batchResp); err != nil {
+		for _, isin := range isins {
+			results = append(results, marketdata.SearchResult{
+				ISIN:  isin,
+				Error: fmt.Errorf("failed to decode response: %w", err),
+			})
+		}
+		return results
+	}
+
+	// Process successful results
+	for _, sr := range batchResp.Results {
+		instrumentType := mapInstrumentType(sr.Type)
+		instrument := domain.NewInstrument(
+			sr.ISIN,
+			sr.Symbol,
+			sr.Name,
+			instrumentType,
+			sr.Currency,
+			sr.Exchange,
+		)
+		results = append(results, marketdata.SearchResult{
+			ISIN:       sr.ISIN,
+			Instrument: &instrument,
+		})
+	}
+
+	// Process errors
+	for _, e := range batchResp.Errors {
+		results = append(results, marketdata.SearchResult{
+			ISIN:  e.ISIN,
+			Error: fmt.Errorf("%s", e.Error),
+		})
+	}
+
+	return results
+}
+
+// GetQuoteBatch retrieves quotes for multiple symbols in a single request.
+// This is more efficient than calling GetQuote multiple times.
+func (c *Client) GetQuoteBatch(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
+	results := make([]marketdata.QuoteBatchResult, 0, len(symbols))
+
+	if len(symbols) == 0 {
+		return results
+	}
+
+	reqBody := quoteBatchRequest{Symbols: symbols}
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		for _, symbol := range symbols {
+			results = append(results, marketdata.QuoteBatchResult{
+				Symbol: symbol,
+				Error:  fmt.Errorf("failed to marshal request: %w", err),
+			})
+		}
+		return results
+	}
+
+	reqURL := fmt.Sprintf("%s%s", c.baseURL, quoteBatchPath)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(jsonBody))
+	if err != nil {
+		for _, symbol := range symbols {
+			results = append(results, marketdata.QuoteBatchResult{
+				Symbol: symbol,
+				Error:  fmt.Errorf("failed to create request: %w", err),
+			})
+		}
+		return results
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		for _, symbol := range symbols {
+			results = append(results, marketdata.QuoteBatchResult{
+				Symbol: symbol,
+				Error:  fmt.Errorf("failed to execute request: %w", err),
+			})
+		}
+		return results
+	}
+
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			slog.Warn("failed to close response body", "error", closeErr, "url", reqURL)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		for _, symbol := range symbols {
+			results = append(results, marketdata.QuoteBatchResult{
+				Symbol: symbol,
+				Error:  fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body)),
+			})
+		}
+		return results
+	}
+
+	var batchResp quoteBatchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&batchResp); err != nil {
+		for _, symbol := range symbols {
+			results = append(results, marketdata.QuoteBatchResult{
+				Symbol: symbol,
+				Error:  fmt.Errorf("failed to decode response: %w", err),
+			})
+		}
+		return results
+	}
+
+	// Process successful results
+	for _, qr := range batchResp.Results {
+		price, err := domain.NewDecimalFromString(qr.Price)
+		if err != nil {
+			results = append(results, marketdata.QuoteBatchResult{
+				Symbol: qr.Symbol,
+				Error:  fmt.Errorf("failed to parse price: %w", err),
+			})
+			continue
+		}
+
+		results = append(results, marketdata.QuoteBatchResult{
+			Symbol: qr.Symbol,
+			Quote: &marketdata.QuoteResult{
+				Symbol:   qr.Symbol,
+				Price:    price,
+				Currency: qr.Currency,
+				Time:     qr.Time,
+			},
+		})
+	}
+
+	// Process errors
+	for _, e := range batchResp.Errors {
+		results = append(results, marketdata.QuoteBatchResult{
+			Symbol: e.Symbol,
+			Error:  fmt.Errorf("%s", e.Error),
+		})
+	}
+
+	return results
+}
+
+// Compile-time check that Client implements BatchProvider.
+var _ marketdata.BatchProvider = (*Client)(nil)

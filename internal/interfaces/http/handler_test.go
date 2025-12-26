@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 )
 
@@ -18,6 +19,7 @@ import (
 
 type MockPortfolioService struct {
 	addPositionFunc         func(ctx context.Context, isin string, amount domain.Decimal, currency string) (*domain.Position, error)
+	addPositionsBatchFunc   func(ctx context.Context, requests []application.AddPositionBatchRequest) *application.AddPositionsBatchResult
 	removePositionFunc      func(ctx context.Context, id string) error
 	getPositionFunc         func(ctx context.Context, id string) (*domain.Position, error)
 	listPositionsFunc       func(ctx context.Context) ([]domain.Position, error)
@@ -30,6 +32,16 @@ func (m *MockPortfolioService) AddPosition(ctx context.Context, isin string, amo
 		return m.addPositionFunc(ctx, isin, amount, currency)
 	}
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *MockPortfolioService) AddPositionsBatch(ctx context.Context, requests []application.AddPositionBatchRequest) *application.AddPositionsBatchResult {
+	if m.addPositionsBatchFunc != nil {
+		return m.addPositionsBatchFunc(ctx, requests)
+	}
+	return &application.AddPositionsBatchResult{
+		Successful: make([]application.AddPositionResult, 0),
+		Failed:     make([]application.AddPositionResult, 0),
+	}
 }
 
 func (m *MockPortfolioService) RemovePosition(ctx context.Context, id string) error {
