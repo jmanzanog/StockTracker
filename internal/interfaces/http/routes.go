@@ -8,6 +8,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler) {
 	api := router.Group("/api/v1")
 	{
 		api.POST("/positions", handler.AddPosition)
+		api.POST("/positions/batch", handler.AddPositionsBatch)
 		api.GET("/positions", handler.ListPositions)
 		api.GET("/positions/:id", handler.GetPosition)
 		api.DELETE("/positions/:id", handler.DeletePosition)

@@ -389,6 +389,8 @@ func TestDecimal_Scan(t *testing.T) {
 		{"string", "678.90", "678.90", false},
 		{"int64", int64(100), "100", false},
 		{"float64", 123.45, "123.45", false},
+		{"invalid string", "abc", "", true},
+		{"invalid []byte", []byte("abc"), "", true},
 		{"unsupported type", true, "", true},
 	}
 
@@ -464,5 +466,18 @@ func TestDecimal_Round_Overflow(t *testing.T) {
 	expectedErr := "decimal places too small"
 	if err.Error() != expectedErr {
 		t.Errorf("expected error message '%s', got '%s'", expectedErr, err.Error())
+	}
+}
+
+func TestDecimal_ArithmeticErrors(t *testing.T) {
+	// Triggering error in apd is hard with default context,
+	// but we can try with Infinity or values that exceed limits if we change the context.
+	// However, we want to test the current code.
+
+	// Let's at least cover the IsZero branch in Div
+	d1 := NewDecimalFromInt(100)
+	_, err := d1.Div(Zero)
+	if err == nil {
+		t.Error("expected error on division by zero")
 	}
 }

@@ -36,6 +36,30 @@ func TestLoad_Success_Finnhub(t *testing.T) {
 	assert.Equal(t, "finnhub", cfg.MarketDataProvider)
 }
 
+func TestLoad_Success_YFinance(t *testing.T) {
+	// Setup env vars for YFinance provider
+	t.Setenv("DB_DSN", "postgres://user:pass@localhost:5432/db")
+	t.Setenv("MARKET_DATA_PROVIDER", "yfinance")
+	t.Setenv("YFINANCE_BASE_URL", "http://market-data-service:8000")
+
+	cfg, err := Load()
+	assert.NoError(t, err)
+	assert.Equal(t, "yfinance", cfg.MarketDataProvider)
+	assert.Equal(t, "http://market-data-service:8000", cfg.YFinanceBaseURL)
+}
+
+func TestLoad_Success_YFinance_DefaultURL(t *testing.T) {
+	// YFinance with default URL
+	t.Setenv("DB_DSN", "postgres://user:pass@localhost:5432/db")
+	t.Setenv("MARKET_DATA_PROVIDER", "yfinance")
+	t.Setenv("YFINANCE_BASE_URL", "") // Use default
+
+	cfg, err := Load()
+	assert.NoError(t, err)
+	assert.Equal(t, "yfinance", cfg.MarketDataProvider)
+	assert.Equal(t, "http://localhost:8000", cfg.YFinanceBaseURL)
+}
+
 func TestLoad_MissingTwelveDataAPIKey(t *testing.T) {
 	// Ensure CLEAN environment
 	t.Setenv("TWELVE_DATA_API_KEY", "")
@@ -142,4 +166,5 @@ func TestGetEnvOrDefault(t *testing.T) {
 func TestMarketDataProviderConstants(t *testing.T) {
 	assert.Equal(t, "twelvedata", MarketDataProviderTwelveData)
 	assert.Equal(t, "finnhub", MarketDataProviderFinnhub)
+	assert.Equal(t, "yfinance", MarketDataProviderYFinance)
 }

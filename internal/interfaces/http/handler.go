@@ -6,12 +6,14 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 )
 
 // PortfolioService defines the interface for portfolio operations
 type PortfolioService interface {
 	AddPosition(ctx context.Context, isin string, amount domain.Decimal, currency string) (*domain.Position, error)
+	AddPositionsBatch(ctx context.Context, requests []application.AddPositionBatchRequest) *application.AddPositionsBatchResult
 	RemovePosition(ctx context.Context, id string) error
 	GetPosition(ctx context.Context, id string) (*domain.Position, error)
 	ListPositions(ctx context.Context) ([]domain.Position, error)
@@ -146,4 +148,34 @@ func (h *Handler) RefreshPrices(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "prices refreshed successfully"})
+}
+
+// AddPositionsBatch handles batch creation of positions.
+// It accepts an array of positions directly and returns successful and failed results.
+func (h *Handler) AddPositionsBatch(c *gin.Context) {
+	var positions []application.AddPositionBatchRequest
+	if err := c.ShouldBindJSON(&positions); err != nil {
+		slog.ErrorContext(c.Request.Context(), "Invalid batch request body", "error", err)
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	if len(positions) == 0 {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "positions array cannot be empty"})
+		return
+	}
+
+	result := h.portfolioService.AddPositionsBatch(c.Request.Context(), positions)
+
+	// Determine response status based on results
+	statusCode := http.StatusCreated
+	if len(result.Successful) == 0 && len(result.Failed) > 0 {
+		// All failed
+		statusCode = http.StatusMultiStatus
+	} else if len(result.Failed) > 0 {
+		// Partial success
+		statusCode = http.StatusMultiStatus
+	}
+
+	c.JSON(statusCode, result)
 }
