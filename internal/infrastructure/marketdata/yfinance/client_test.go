@@ -471,7 +471,7 @@ func TestSearchByISINBatch(t *testing.T) {
 					t.Errorf("Expected path /api/v1/search/batch, got %s", r.URL.Path)
 				}
 				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(tt.mockResponse))
+				_, _ = w.Write([]byte(tt.mockResponse))
 			}))
 			defer server.Close()
 
@@ -562,7 +562,7 @@ func TestGetQuoteBatch(t *testing.T) {
 					t.Errorf("Expected path /api/v1/quote/batch, got %s", r.URL.Path)
 				}
 				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(tt.mockResponse))
+				_, _ = w.Write([]byte(tt.mockResponse))
 			}))
 			defer server.Close()
 
@@ -617,7 +617,7 @@ func TestSearchByISINBatch_Errors(t *testing.T) {
 	// Malformed JSON
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{invalid-json`))
+		_, _ = w.Write([]byte(`{invalid-json`))
 	}))
 	defer server.Close()
 	client.baseURL = server.URL
@@ -646,7 +646,7 @@ func TestGetQuoteBatch_Errors(t *testing.T) {
 	// Malformed JSON
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{invalid-json`))
+		_, _ = w.Write([]byte(`{invalid-json`))
 	}))
 	defer server.Close()
 	client.baseURL = server.URL
@@ -658,7 +658,7 @@ func TestGetQuoteBatch_Errors(t *testing.T) {
 	// Status 500
 	server500 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`Internal Error`))
+		_, _ = w.Write([]byte(`Internal Error`))
 	}))
 	defer server500.Close()
 	client.baseURL = server500.URL
@@ -670,7 +670,7 @@ func TestGetQuoteBatch_Errors(t *testing.T) {
 	// Invalid Price in JSON
 	serverPrice := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"results": [{"symbol": "AAPL", "price": "invalid", "currency": "USD", "time": "2024-01-01"}]}`))
+		_, _ = w.Write([]byte(`{"results": [{"symbol": "AAPL", "price": "invalid", "currency": "USD", "time": "2024-01-01"}]}`))
 	}))
 	defer serverPrice.Close()
 	client.baseURL = serverPrice.URL

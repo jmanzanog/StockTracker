@@ -321,5 +321,20 @@ go test -v ./... -race -coverprofile=coverage.txt -covermode=atomic
 - **Pull Requests & Main CI**: PostgreSQL only (fast feedback)
 - **Release Pipeline (GHCR)**: Full multi-database suite (comprehensive validation)
 
+## CI Verification Scripts
+
+To ensure your changes pass the CI checks before pushing, you can use the provided verification scripts. These scripts run `go mod tidy`, `go fmt`, `golangci-lint`, and all unit tests.
+
+### Windows (PowerShell)
+```powershell
+.\scripts\verify.ps1
+```
+
+### Linux / macOS (Bash)
+```bash
+chmod +x scripts/verify.sh
+./scripts/verify.sh
+```
+
 ## License
 MIT
