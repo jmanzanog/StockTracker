@@ -241,7 +241,7 @@ func TestAddPositionsBatch_SaveError(t *testing.T) {
 	result := service.AddPositionsBatch(context.Background(), requests)
 
 	// When save fails, all successful positions should become failed
-	if result.Successful != nil && len(result.Successful) != 0 {
+	if len(result.Successful) != 0 {
 		t.Errorf("expected 0 successful after save error, got %d", len(result.Successful))
 	}
 	if len(result.Failed) != 1 {
