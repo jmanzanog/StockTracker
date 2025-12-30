@@ -23,10 +23,10 @@ CREATE TABLE IF NOT EXISTS positions (
     id VARCHAR(36) PRIMARY KEY,
     portfolio_id VARCHAR(36) NOT NULL,
     instrument_isin VARCHAR(12) NOT NULL,
-    invested_amount NUMBER(19,4) NOT NULL,
+    invested_amount DECIMAL(19,4) NOT NULL,
     invested_currency VARCHAR(3) NOT NULL,
-    quantity NUMBER(19,4) NOT NULL,
-    current_price NUMBER(19,4),
+    quantity DECIMAL(19,4) NOT NULL,
+    current_price DECIMAL(19,4),
     last_updated TIMESTAMP WITH TIME ZONE,
     CONSTRAINT fk_portfolio FOREIGN KEY (portfolio_id) REFERENCES portfolios(id),
     CONSTRAINT fk_instrument FOREIGN KEY (instrument_isin) REFERENCES instruments(isin)
