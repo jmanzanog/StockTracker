@@ -49,7 +49,7 @@ func TestMigrationSource_Integration(t *testing.T) {
 	// Use sqlite in memory for testing
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	m := NewMigrationSource("sqlite3")
 

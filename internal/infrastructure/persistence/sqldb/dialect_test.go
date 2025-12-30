@@ -13,7 +13,7 @@ import (
 func TestPostgresDialect_Migrate(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	d := &PostgresDialect{}
 	assert.Equal(t, "postgres", d.Name())
@@ -38,7 +38,7 @@ func TestPostgresDialect_Migrate(t *testing.T) {
 func TestOracleDialect_Migrate(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	d := &OracleDialect{}
 	assert.Equal(t, "oracle", d.Name())
