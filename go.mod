@@ -7,7 +7,7 @@ require (
 	github.com/cockroachdb/apd/v3 v3.2.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.8.0
 	github.com/joho/godotenv v1.5.1
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/sijms/go-ora/v2 v2.9.0
