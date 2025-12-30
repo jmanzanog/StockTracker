@@ -498,3 +498,37 @@ func TestRepository_ConcurrentSaves_RapidUpdates(t *testing.T) {
 		assert.Equal(t, len(instruments), len(found.Positions))
 	})
 }
+
+func TestRepository_LastUpdated(t *testing.T) {
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
+		ctx := context.Background()
+
+		p := domain.NewPortfolio("LastUpdated Test")
+
+		// 1. Initial save
+		err := repo.Save(ctx, &p)
+		assert.NoError(t, err)
+		firstUpdate := p.LastUpdated
+		assert.NotZero(t, firstUpdate)
+
+		// Wait a bit to ensure a different timestamp
+		time.Sleep(500 * time.Millisecond)
+
+		// 2. Second save
+		err = repo.Save(ctx, &p)
+		assert.NoError(t, err)
+		secondUpdate := p.LastUpdated
+		assert.True(t, secondUpdate.After(firstUpdate), "LastUpdated should be updated on second save")
+
+		// Verify from DB
+		found, err := repo.FindByID(ctx, p.ID)
+		assert.NoError(t, err)
+
+		t.Logf("First: %v, Second: %v, Found: %v", firstUpdate, secondUpdate, found.LastUpdated)
+
+		// Assert that the version in DB is definitely AFTER the first version.
+		// This proves the update worked without getting tangled in precision/timezone comparisons with exact 'now'.
+		assert.True(t, found.LastUpdated.After(firstUpdate), "DB LastUpdated should be after the initial creation time")
+	})
+}
