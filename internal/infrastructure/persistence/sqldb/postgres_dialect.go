@@ -7,22 +7,22 @@ import (
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/sqldb/migrations"
-	"github.com/pressly/goose/v3"
 )
 
 type PostgresDialect struct{}
 
 func (d *PostgresDialect) Name() string { return "postgres" }
 
-func (d *PostgresDialect) Migrate(ctx context.Context, db *sql.DB) error {
-	goose.SetBaseFS(migrations.PostgresFS)
+func (d *PostgresDialect) Migrate(_ context.Context, db *sql.DB) error {
+	migrator := migrations.NewMigrationSource("postgres")
 
-	if err := goose.SetDialect("postgres"); err != nil {
-		return fmt.Errorf("setting dialect: %w", err)
+	n, err := migrator.Run(db)
+	if err != nil {
+		return fmt.Errorf("running migrations: %w", err)
 	}
 
-	if err := goose.UpContext(ctx, db, "postgres"); err != nil {
-		return fmt.Errorf("running migrations: %w", err)
+	if n > 0 {
+		fmt.Printf("Applied %d migration(s)\n", n)
 	}
 
 	return nil

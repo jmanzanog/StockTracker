@@ -14,30 +14,18 @@ type OracleDialect struct{}
 
 func (d *OracleDialect) Name() string { return "oracle" }
 
-func (d *OracleDialect) Migrate(ctx context.Context, db *sql.DB) error {
-	// Goose does not support Oracle natively in a way that is easy to cross-compile with go-ora.
-	// We use the same pattern: read the SQL file and execute it.
-	content, err := migrations.OracleFS.ReadFile("oracle/20240101000000_init.sql")
+func (d *OracleDialect) Migrate(_ context.Context, db *sql.DB) error {
+	migrator := migrations.NewMigrationSource("oracle")
+
+	n, err := migrator.Run(db)
 	if err != nil {
-		return fmt.Errorf("reading migration file: %w", err)
+		return fmt.Errorf("running migrations: %w", err)
 	}
 
-	// Split statements by '/' which is standard in Oracle scripts
-	statements := strings.Split(string(content), "/")
-
-	for _, stmt := range statements {
-		stmt = strings.TrimSpace(stmt)
-		if stmt == "" {
-			continue
-		}
-
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			// ORA-00955: name is already used by an existing object
-			if !strings.Contains(err.Error(), "ORA-00955") {
-				return fmt.Errorf("migrating: %s: %w", stmt, err)
-			}
-		}
+	if n > 0 {
+		fmt.Printf("Applied %d migration(s)\n", n)
 	}
+
 	return nil
 }
 
