@@ -2,7 +2,7 @@
 -- Common migration for PostgreSQL and Oracle
 -- This file uses ANSI SQL compatible with both databases
 
-CREATE TABLE instruments (
+CREATE TABLE IF NOT EXISTS instruments (
     isin VARCHAR(50) PRIMARY KEY,
     symbol VARCHAR(50) NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -11,14 +11,14 @@ CREATE TABLE instruments (
     exchange VARCHAR(50) NOT NULL
 );
 
-CREATE TABLE portfolios (
+CREATE TABLE IF NOT EXISTS portfolios (
     id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     last_updated TIMESTAMP,
     created_at TIMESTAMP
 );
 
-CREATE TABLE positions (
+CREATE TABLE IF NOT EXISTS positions (
     id VARCHAR(36) PRIMARY KEY,
     portfolio_id VARCHAR(36) NOT NULL,
     instrument_isin VARCHAR(50) NOT NULL,
@@ -32,6 +32,6 @@ CREATE TABLE positions (
 );
 
 -- +migrate Down
-DROP TABLE positions;
-DROP TABLE portfolios;
-DROP TABLE instruments;
+DROP TABLE IF EXISTS positions;
+DROP TABLE IF EXISTS portfolios;
+DROP TABLE IF EXISTS instruments;
