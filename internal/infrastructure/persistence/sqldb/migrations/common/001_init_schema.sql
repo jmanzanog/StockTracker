@@ -1,37 +1,38 @@
 -- +migrate Up
--- Common migration for PostgreSQL and Oracle
--- This file uses ANSI SQL compatible with both databases
 
-CREATE TABLE instruments (
-    isin VARCHAR(50) PRIMARY KEY,
-    symbol VARCHAR(50) NOT NULL,
+-- Instruments table
+CREATE TABLE IF NOT EXISTS instruments (
+    isin VARCHAR(12) PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
     name VARCHAR(255) NOT NULL,
-    type VARCHAR(50) NOT NULL,
-    currency VARCHAR(10) NOT NULL,
-    exchange VARCHAR(50) NOT NULL
+    type VARCHAR(20) NOT NULL,
+    currency VARCHAR(3) NOT NULL,
+    exchange VARCHAR(50)
 );
 
-CREATE TABLE portfolios (
+-- Portfolios table
+CREATE TABLE IF NOT EXISTS portfolios (
     id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    last_updated TIMESTAMP,
-    created_at TIMESTAMP
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE positions (
+-- Positions table
+CREATE TABLE IF NOT EXISTS positions (
     id VARCHAR(36) PRIMARY KEY,
     portfolio_id VARCHAR(36) NOT NULL,
-    instrument_isin VARCHAR(50) NOT NULL,
-    invested_amount NUMERIC NOT NULL,
-    invested_currency VARCHAR(10) NOT NULL,
-    quantity NUMERIC NOT NULL,
-    current_price NUMERIC NOT NULL,
-    last_updated TIMESTAMP,
-    CONSTRAINT fk_pos_port FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE CASCADE,
-    CONSTRAINT fk_pos_inst FOREIGN KEY (instrument_isin) REFERENCES instruments(isin)
+    instrument_isin VARCHAR(12) NOT NULL,
+    invested_amount NUMBER(19,4) NOT NULL,
+    invested_currency VARCHAR(3) NOT NULL,
+    quantity NUMBER(19,4) NOT NULL,
+    current_price NUMBER(19,4),
+    last_updated TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT fk_portfolio FOREIGN KEY (portfolio_id) REFERENCES portfolios(id),
+    CONSTRAINT fk_instrument FOREIGN KEY (instrument_isin) REFERENCES instruments(isin)
 );
 
 -- +migrate Down
-DROP TABLE positions;
-DROP TABLE portfolios;
-DROP TABLE instruments;
+DROP TABLE IF EXISTS positions;
+DROP TABLE IF EXISTS portfolios;
+DROP TABLE IF EXISTS instruments;
