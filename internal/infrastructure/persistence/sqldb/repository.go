@@ -28,6 +28,7 @@ func (r *Repository) AutoMigrate() error {
 }
 
 func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
+	p.LastUpdated = time.Now()
 	return r.db.WithTx(ctx, func(tx *sql.Tx) error {
 		// 1. Upsert Portfolio
 		if err := r.db.Dialect.UpsertPortfolio(ctx, tx, p); err != nil {
