@@ -73,3 +73,30 @@ func TestMigrationSource_Integration(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, len(applied)-1, len(appliedAfter), "Should have one less applied record after rollback")
 }
+
+func TestMigrationSource_Errors(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	// Do not defer close here, we want to close it manually to trigger errors
+
+	m := NewMigrationSource("sqlite3")
+
+	t.Run("Run error with closed db", func(t *testing.T) {
+		_ = db.Close()
+		_, err := m.Run(db)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "executing migrations")
+	})
+
+	t.Run("GetApplied error with closed db", func(t *testing.T) {
+		_, err := m.GetApplied(db)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "getting migration records")
+	})
+
+	t.Run("Rollback error with closed db", func(t *testing.T) {
+		_, err := m.Rollback(db)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "rolling back migration")
+	})
+}
