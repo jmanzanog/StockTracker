@@ -14,11 +14,12 @@ if ($fmtFiles) {
 Write-Host "--- Running golangci-lint ---" -ForegroundColor Cyan
 if (Get-Command golangci-lint -ErrorAction SilentlyContinue) {
     golangci-lint run
-} else {
+}
+else {
     Write-Host "golangci-lint is not installed. Skipping linting." -ForegroundColor Yellow
 }
 
-Write-Host "--- Running tests ---" -ForegroundColor Cyan
+Write-Host "--- Running tests (Postgres + Oracle) ---" -ForegroundColor Cyan
 go test -v ./...
 
 Write-Host "--- Verification complete! ---" -ForegroundColor Green

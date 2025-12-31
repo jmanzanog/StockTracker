@@ -280,46 +280,29 @@ YFINANCE_BASE_URL=http://market-data-service:8000
 
 > **Note**: Integration tests utilize **Testcontainers**, so you must have **Docker** installed and running on your machine to execute them successfully.
 
-The project includes comprehensive test coverage with support for multiple database backends (PostgreSQL and Oracle).
+The project includes comprehensive test coverage with **optimized reusable containers** for both PostgreSQL and Oracle backends.
 
-### Test Execution Modes
+### Performance Optimization
 
-#### 1. Default Mode (Fast) - PostgreSQL Only
-Perfect for rapid local development and CI pipelines:
+Tests use **shared containers** that start only once per test run:
+- **PostgreSQL**: ~5 seconds startup, ~5ms per test
+- **Oracle**: ~25 seconds startup, ~10ms per test
+- **Total for all tests**: ~35 seconds (vs ~30+ minutes without optimization)
+
+### Running Tests
+
 ```bash
 go test ./...
 ```
-- ✅ Runs all tests including integration tests against **PostgreSQL only**
-- ⚡ Fast execution (typically 30-60 seconds)
-- 🔄 Default mode when no environment variable is set
-
-#### 2. Oracle Only
-For testing Oracle-specific dialect and compatibility:
-```bash
-TEST_DB=oracle go test ./internal/infrastructure/persistence/sqldb/...
-```
-- ✅ Runs integration tests against **Oracle only**
-- 🐌 Slower execution (~2-3 minutes due to Oracle container startup)
-- 🎯 Use when working on Oracle-specific features
-
-#### 3. Full Multi-Database Suite
-Complete validation against both databases:
-```bash
-TEST_DB=all go test ./internal/infrastructure/persistence/sqldb/...
-```
-- ✅ Runs integration tests against **both PostgreSQL and Oracle**
-- 🐌 Slowest execution (~3-4 minutes)
-- 🚀 Automatically executed in the GHCR release pipeline
+- ✅ Runs all tests against **both PostgreSQL and Oracle**
+- ⚡ Fast execution (~35 seconds total)
+- 🔄 Containers are started once and reused across all tests
 
 ### Test Coverage
 Generate coverage report:
 ```bash
 go test -v ./... -race -coverprofile=coverage.txt -covermode=atomic
 ```
-
-### CI/CD Test Strategy
-- **Pull Requests & Main CI**: PostgreSQL only (fast feedback)
-- **Release Pipeline (GHCR)**: Full multi-database suite (comprehensive validation)
 
 ## CI Verification Scripts
 
