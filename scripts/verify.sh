@@ -18,7 +18,7 @@ else
     echo "golangci-lint is not installed. Skipping linting."
 fi
 
-echo "--- Running tests ---"
+echo "--- Running tests (Postgres + Oracle) ---"
 go test -v ./...
 
 echo "--- Verification complete! ---"

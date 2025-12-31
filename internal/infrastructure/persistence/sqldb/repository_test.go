@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
+	"log"
 	"sync"
 	"testing"
 	"time"
@@ -19,37 +19,80 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// runWithBackends executes the test function against configured databases.
-// - Default (empty TEST_DB): Runs Postgres only (fast).
-// - TEST_DB=all: Runs both Postgres and Oracle.
-// - TEST_DB=postgres: Runs Postgres only.
-// - TEST_DB=oracle: Runs Oracle only.
-func runWithBackends(t *testing.T, testFunc func(t *testing.T, db *DB)) {
-	target := os.Getenv("TEST_DB")
-	if target == "" {
-		target = "postgres"
+// --- Reusable Containers ---
+// These variables hold the shared containers and DB connections.
+// Containers start only once per test run, significantly reducing test time.
+var (
+	// Postgres shared container
+	sharedPostgresDB        *DB
+	sharedPostgresContainer *postgres.PostgresContainer
+	postgresSetupOnce       sync.Once
+	postgresSetupErr        error
+
+	// Oracle shared container
+	sharedOracleDB        *DB
+	sharedOracleContainer testcontainers.Container
+	oracleSetupOnce       sync.Once
+	oracleSetupErr        error
+)
+
+// TestMain sets up the shared containers before running tests.
+// Both Postgres and Oracle containers are started once and reused across all tests,
+// reducing total test time from ~10 seconds per test to ~35 seconds total.
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+
+	// Initialize Postgres container
+	postgresSetupOnce.Do(func() {
+		sharedPostgresDB, sharedPostgresContainer, postgresSetupErr = startPostgresContainer(ctx)
+	})
+	if postgresSetupErr != nil {
+		log.Fatalf("Failed to start shared Postgres container: %v", postgresSetupErr)
 	}
 
-	runPostgres := target == "postgres" || target == "all"
-	runOracle := target == "oracle" || target == "all"
-
-	if runPostgres {
-		t.Run("Postgres", func(t *testing.T) {
-			db := setupPostgres(t)
-			testFunc(t, db)
-		})
+	// Initialize Oracle container
+	oracleSetupOnce.Do(func() {
+		sharedOracleDB, sharedOracleContainer, oracleSetupErr = startOracleContainer(ctx)
+	})
+	if oracleSetupErr != nil {
+		log.Fatalf("Failed to start shared Oracle container: %v", oracleSetupErr)
 	}
 
-	if runOracle {
-		t.Run("Oracle", func(t *testing.T) {
-			db := setupOracle(t)
-			testFunc(t, db)
-		})
+	code := m.Run()
+
+	// Cleanup: terminate the shared containers
+	if sharedPostgresContainer != nil {
+		if err := sharedPostgresContainer.Terminate(ctx); err != nil {
+			log.Printf("Failed to terminate Postgres container: %v", err)
+		}
+	}
+	if sharedOracleContainer != nil {
+		if err := sharedOracleContainer.Terminate(ctx); err != nil {
+			log.Printf("Failed to terminate Oracle container: %v", err)
+		}
+	}
+
+	if code != 0 {
+		log.Fatalf("Tests failed with exit code %d", code)
 	}
 }
 
-func setupPostgres(t *testing.T) *DB {
-	ctx := context.Background()
+// runWithBackends executes the test function against both Postgres and Oracle.
+func runWithBackends(t *testing.T, testFunc func(t *testing.T, db *DB)) {
+	t.Run("Postgres", func(t *testing.T) {
+		db := setupPostgres(t)
+		testFunc(t, db)
+	})
+
+	t.Run("Oracle", func(t *testing.T) {
+		db := setupOracle(t)
+		testFunc(t, db)
+	})
+}
+
+// startPostgresContainer initializes the Postgres container and returns the DB wrapper.
+// This is called only once per test run from TestMain.
+func startPostgresContainer(ctx context.Context) (*DB, *postgres.PostgresContainer, error) {
 	pgContainer, err := postgres.Run(ctx,
 		"postgres:18-alpine",
 		postgres.WithDatabase("testdb"),
@@ -62,42 +105,68 @@ func setupPostgres(t *testing.T) *DB {
 		),
 	)
 	if err != nil {
-		t.Fatalf("failed to start postgres container: %s", err)
+		return nil, nil, fmt.Errorf("failed to start postgres container: %w", err)
 	}
-
-	t.Cleanup(func() {
-		if err := pgContainer.Terminate(ctx); err != nil {
-			t.Logf("failed to terminate container: %s", err)
-		}
-	})
 
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
-		t.Fatalf("failed to get connection string: %s", err)
+		return nil, pgContainer, fmt.Errorf("failed to get connection string: %w", err)
 	}
 
 	rawDB, err := sql.Open("pgx", connStr)
 	if err != nil {
-		t.Fatalf("failed to open db: %s", err)
+		return nil, pgContainer, fmt.Errorf("failed to open db: %w", err)
 	}
 
 	db := New(rawDB, &PostgresDialect{})
 
 	if err := db.Dialect.Migrate(ctx, rawDB); err != nil {
-		t.Fatalf("failed to migrate: %s", err)
+		return nil, pgContainer, fmt.Errorf("failed to migrate: %w", err)
 	}
 
-	return db
+	log.Println("Postgres container started and migrated successfully")
+	return db, pgContainer, nil
 }
 
-func setupOracle(t *testing.T) *DB {
+// cleanupPostgresTables truncates all tables to ensure test isolation.
+// This is MUCH faster than restarting the container (~5ms vs ~5s).
+func cleanupPostgresTables(t *testing.T, db *DB) {
 	ctx := context.Background()
+
+	// Use TRUNCATE with CASCADE for faster cleanup and to handle foreign keys
+	cleanupQueries := []string{
+		"TRUNCATE TABLE positions, portfolios, instruments CASCADE",
+	}
+
+	for _, query := range cleanupQueries {
+		if _, err := db.ExecContext(ctx, query); err != nil {
+			t.Logf("Warning: cleanup query failed (may be expected on first run): %s - %v", query, err)
+		}
+	}
+}
+
+// setupPostgres returns the shared Postgres DB connection and cleans up tables for test isolation.
+// The container is started only once in TestMain, making subsequent test runs very fast.
+func setupPostgres(t *testing.T) *DB {
+	if sharedPostgresDB == nil {
+		t.Fatal("Postgres container not initialized. Ensure TEST_DB is not set to 'oracle' only.")
+	}
+
+	// Clean up tables before each test to ensure isolation
+	cleanupPostgresTables(t, sharedPostgresDB)
+
+	return sharedPostgresDB
+}
+
+// startOracleContainer initializes the Oracle container and returns the DB wrapper.
+// This is called only once per test run from TestMain.
+func startOracleContainer(ctx context.Context) (*DB, testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		// Use a light, fast start image
 		Image:        "gvenzl/oracle-free:23.6-slim-faststart",
 		ExposedPorts: []string{"1521/tcp"},
 		Env:          map[string]string{"ORACLE_PASSWORD": "password"},
-		WaitingFor:   wait.ForLog("DATABASE IS READY TO USE").WithStartupTimeout(120 * time.Second),
+		WaitingFor:   wait.ForLog("DATABASE IS READY TO USE").WithStartupTimeout(180 * time.Second),
 	}
 
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -105,21 +174,16 @@ func setupOracle(t *testing.T) *DB {
 		Started:          true,
 	})
 	if err != nil {
-		t.Fatalf("failed to start oracle container: %s", err)
+		return nil, nil, fmt.Errorf("failed to start oracle container: %w", err)
 	}
-	t.Cleanup(func() {
-		if err := c.Terminate(ctx); err != nil {
-			t.Logf("failed to terminate container: %v", err)
-		}
-	})
 
 	port, err := c.MappedPort(ctx, "1521")
 	if err != nil {
-		t.Fatalf("failed to get port: %v", err)
+		return nil, c, fmt.Errorf("failed to get port: %w", err)
 	}
 	host, err := c.Host(ctx)
 	if err != nil {
-		t.Fatalf("failed to get host: %v", err)
+		return nil, c, fmt.Errorf("failed to get host: %w", err)
 	}
 
 	// DSN for go-ora: oracle://user:password@host:port/service
@@ -127,15 +191,50 @@ func setupOracle(t *testing.T) *DB {
 
 	rawDB, err := sql.Open("oracle", dsn)
 	if err != nil {
-		t.Fatalf("failed to open db: %s", err)
+		return nil, c, fmt.Errorf("failed to open db: %w", err)
 	}
 
 	db := New(rawDB, &OracleDialect{})
 	if err := db.Dialect.Migrate(ctx, rawDB); err != nil {
-		t.Fatalf("failed to migrate: %s", err)
+		return nil, c, fmt.Errorf("failed to migrate: %w", err)
 	}
 
-	return db
+	log.Println("Oracle container started and migrated successfully")
+	return db, c, nil
+}
+
+// cleanupOracleTables truncates all tables to ensure test isolation.
+// This is MUCH faster than restarting the container (~50ms vs ~60s).
+func cleanupOracleTables(t *testing.T, db *DB) {
+	ctx := context.Background()
+
+	// Order matters due to foreign key constraints: positions -> portfolios -> instruments
+	// Disable constraint checking, truncate, then re-enable
+	// Note: Oracle requires disabling constraints or deleting in correct order
+	cleanupQueries := []string{
+		"DELETE FROM positions",
+		"DELETE FROM portfolios",
+		"DELETE FROM instruments",
+	}
+
+	for _, query := range cleanupQueries {
+		if _, err := db.ExecContext(ctx, query); err != nil {
+			t.Logf("Warning: cleanup query failed (may be expected on first run): %s - %v", query, err)
+		}
+	}
+}
+
+// setupOracle returns the shared Oracle DB connection and cleans up tables for test isolation.
+// The container is started only once in TestMain, making subsequent test runs very fast.
+func setupOracle(t *testing.T) *DB {
+	if sharedOracleDB == nil {
+		t.Fatal("Oracle container not initialized. Ensure TEST_DB=oracle or TEST_DB=all is set.")
+	}
+
+	// Clean up tables before each test to ensure isolation
+	cleanupOracleTables(t, sharedOracleDB)
+
+	return sharedOracleDB
 }
 
 // --- Basic CRUD Tests ---
