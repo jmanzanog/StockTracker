@@ -149,7 +149,7 @@ func cleanupPostgresTables(t *testing.T, db *DB) {
 // The container is started only once in TestMain, making subsequent test runs very fast.
 func setupPostgres(t *testing.T) *DB {
 	if sharedPostgresDB == nil {
-		t.Fatal("Postgres container not initialized. Ensure TEST_DB is not set to 'oracle' only.")
+		t.Fatal("Postgres container not initialized. TestMain should have started it.")
 	}
 
 	// Clean up tables before each test to ensure isolation
@@ -228,7 +228,7 @@ func cleanupOracleTables(t *testing.T, db *DB) {
 // The container is started only once in TestMain, making subsequent test runs very fast.
 func setupOracle(t *testing.T) *DB {
 	if sharedOracleDB == nil {
-		t.Fatal("Oracle container not initialized. Ensure TEST_DB=oracle or TEST_DB=all is set.")
+		t.Fatal("Oracle container not initialized. TestMain should have started it.")
 	}
 
 	// Clean up tables before each test to ensure isolation
