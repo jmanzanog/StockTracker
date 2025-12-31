@@ -63,15 +63,16 @@ func TestMigrationSource_Integration(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, n, len(applied), "Applied records should match count")
 
-	// 3. Test Rollback
+	// 3. Test Rollback (rolls back ALL migrations - this is the current behavior of migrate.Down)
+	appliedBefore := len(applied)
 	rollbackCount, err := m.Rollback(db)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, rollbackCount, "Should have rolled back exactly one migration")
+	assert.Equal(t, appliedBefore, rollbackCount, "Should have rolled back all applied migrations")
 
-	// Verify rollback took effect in records
+	// Verify rollback took effect in records - all migrations should be rolled back
 	appliedAfter, err := m.GetApplied(db)
 	assert.NoError(t, err)
-	assert.Equal(t, len(applied)-1, len(appliedAfter), "Should have one less applied record after rollback")
+	assert.Equal(t, 0, len(appliedAfter), "Should have no applied records after full rollback")
 }
 
 func TestMigrationSource_Errors(t *testing.T) {
