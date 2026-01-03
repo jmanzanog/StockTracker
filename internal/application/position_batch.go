@@ -103,6 +103,10 @@ func (s *PortfolioService) AddPositionsBatch(ctx context.Context, requests []Add
 	}
 
 	// Create positions for successful instruments and quotes
+	// We lock only for the actual portfolio modification and saving
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for isin, req := range requestMap {
 		instrument := instruments[isin]
 		if instrument == nil {

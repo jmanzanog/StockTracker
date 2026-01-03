@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 )
 
 type PortfolioService struct {
+	mu               sync.RWMutex
 	repo             domain.PortfolioRepository
 	marketData       marketdata.MDataProvider
 	defaultPortfolio *domain.Portfolio
@@ -71,6 +73,9 @@ func (s *PortfolioService) AddPosition(ctx context.Context, isin string, investe
 		return nil, fmt.Errorf("failed to update position price: %w", err)
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if err := s.defaultPortfolio.AddPosition(position); err != nil {
 		return nil, fmt.Errorf("failed to add position: %w", err)
 	}
@@ -83,6 +88,9 @@ func (s *PortfolioService) AddPosition(ctx context.Context, isin string, investe
 }
 
 func (s *PortfolioService) RemovePosition(ctx context.Context, positionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if err := s.defaultPortfolio.RemovePosition(positionID); err != nil {
 		return fmt.Errorf("failed to remove position: %w", err)
 	}
@@ -95,26 +103,48 @@ func (s *PortfolioService) RemovePosition(ctx context.Context, positionID string
 }
 
 func (s *PortfolioService) GetPosition(ctx context.Context, positionID string) (*domain.Position, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	slog.DebugContext(ctx, "getting position", "position_id", positionID)
 	position, err := s.defaultPortfolio.GetPosition(positionID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get position", "position_id", positionID, "error", err)
 		return nil, fmt.Errorf("failed to get position: %w", err)
 	}
-	return position, nil
+
+	// Return a copy
+	posCopy := *position
+	return &posCopy, nil
 }
 
 func (s *PortfolioService) ListPositions(ctx context.Context) ([]domain.Position, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	slog.DebugContext(ctx, "listing positions", "count", len(s.defaultPortfolio.Positions))
-	return s.defaultPortfolio.Positions, nil
+
+	// Return a deep copy of the slice
+	positions := make([]domain.Position, len(s.defaultPortfolio.Positions))
+	copy(positions, s.defaultPortfolio.Positions)
+	return positions, nil
 }
 
 func (s *PortfolioService) GetPortfolioSummary(ctx context.Context) (*domain.Portfolio, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	slog.DebugContext(ctx, "getting portfolio summary", "portfolio_id", s.defaultPortfolio.ID)
-	return s.defaultPortfolio, nil
+
+	// Return a deep copy
+	clone := s.defaultPortfolio.Clone()
+	return &clone, nil
 }
 
 func (s *PortfolioService) RefreshPrices(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for i := range s.defaultPortfolio.Positions {
 		pos := &s.defaultPortfolio.Positions[i]
 
