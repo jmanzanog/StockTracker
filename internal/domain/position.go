@@ -35,7 +35,10 @@ func (p *Position) UpdatePrice(price Decimal) error {
 	p.CurrentPrice = price
 	p.LastUpdated = time.Now()
 
-	if !price.IsZero() && !p.InvestedAmount.IsZero() {
+	// Only calculate quantity on first price update (when Quantity is still zero).
+	// Subsequent price updates should preserve the original quantity so that
+	// CurrentValue = Quantity * CurrentPrice reflects actual market movements.
+	if p.Quantity.IsZero() && !price.IsZero() && !p.InvestedAmount.IsZero() {
 		quantity, err := p.InvestedAmount.Div(price)
 		if err != nil {
 			return fmt.Errorf("failed to calculate quantity: %w", err)

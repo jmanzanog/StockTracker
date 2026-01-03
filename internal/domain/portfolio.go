@@ -158,3 +158,13 @@ func (p *Portfolio) TotalProfitLossPercent() (Decimal, error) {
 	}
 	return result, nil
 }
+
+// Clone creates a deep copy of the portfolio and its positions.
+// This is essential for thread safety, ensuring that read operations (like calculating totals
+// for a report) don't conflict with concurrent write operations (like background price updates).
+func (p *Portfolio) Clone() Portfolio {
+	clone := *p
+	clone.Positions = make([]Position, len(p.Positions))
+	copy(clone.Positions, p.Positions)
+	return clone
+}

@@ -470,3 +470,33 @@ func TestTotalProfitLossPercent_Loss(t *testing.T) {
 		t.Errorf("expected %s%%, got %s%%", expected, percent)
 	}
 }
+
+// --- Clone Tests ---
+
+func TestPortfolio_Clone(t *testing.T) {
+	p := NewPortfolio("Original")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD")
+	_ = pos.UpdatePrice(NewDecimalFromInt(100))
+	_ = p.AddPosition(pos)
+
+	clone := p.Clone()
+
+	// 1. Check equivalent data
+	if clone.ID != p.ID || clone.Name != p.Name || len(clone.Positions) != len(p.Positions) {
+		t.Error("Clone basic data mismatch")
+	}
+
+	// 2. Verify deep copy of Positions slice
+	// Modify original position's price
+	p.Positions[0].CurrentPrice = NewDecimalFromInt(999)
+
+	if clone.Positions[0].CurrentPrice.Equal(p.Positions[0].CurrentPrice) {
+		t.Error("Clone shares the same position reference as original (shallow copy)")
+	}
+
+	// 3. Verify total independence
+	if !clone.Positions[0].CurrentPrice.Equal(NewDecimalFromInt(100)) {
+		t.Errorf("Clone price changed unexpectedly, got %s", clone.Positions[0].CurrentPrice)
+	}
+}
