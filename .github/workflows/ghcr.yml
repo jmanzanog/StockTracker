@@ -78,6 +78,5 @@ jobs:
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
           image-names: "stock-tracker"
-          image-tags: "!latest"
-          cut-off: 14d
+          cut-off: 7d
           keep-n-most-recent: 5
