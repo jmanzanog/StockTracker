@@ -79,7 +79,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           image-names: "stock-tracker"
           cut-off: 7d
-          keep-n-most-recent: 3
-          # Al no especificar image-tags, se aplica a todas,
-          # pero podemos ser explícitos para no tocar latest si no es necesario
-          # aunque keep-n-most-recent suele ser lo más efectivo.
+          keep-n-most-recent: 5
