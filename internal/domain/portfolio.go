@@ -14,9 +14,9 @@ var (
 )
 
 type Portfolio struct {
-	ID          string     `json:"id" gorm:"primaryKey"`
+	ID          string     `json:"id"`
 	Name        string     `json:"name"`
-	Positions   []Position `json:"positions" gorm:"foreignKey:PortfolioID"`
+	Positions   []Position `json:"positions"`
 	LastUpdated time.Time  `json:"last_updated"`
 	CreatedAt   time.Time  `json:"created_at"`
 }

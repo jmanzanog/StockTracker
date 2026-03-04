@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 )
 
 // AddPositionBatchRequest represents a single position request in a batch.
@@ -55,7 +54,7 @@ func (s *PortfolioService) AddPositionsBatch(ctx context.Context, requests []Add
 	var instruments map[string]*domain.Instrument
 	var instrumentErrors map[string]error
 
-	if batchProvider, ok := s.marketData.(marketdata.BatchProvider); ok {
+	if batchProvider, ok := s.marketData.(domain.BatchProvider); ok {
 		slog.InfoContext(ctx, "Using batch provider for instrument search", "count", len(isins))
 		instruments, instrumentErrors = s.searchInstrumentsBatch(ctx, batchProvider, isins)
 	} else {
@@ -84,10 +83,10 @@ func (s *PortfolioService) AddPositionsBatch(ctx context.Context, requests []Add
 		symbolToISIN[inst.Symbol] = isin
 	}
 
-	var quotes map[string]*marketdata.QuoteResult
+	var quotes map[string]*domain.QuoteResult
 	var quoteErrors map[string]error
 
-	if batchProvider, ok := s.marketData.(marketdata.BatchProvider); ok {
+	if batchProvider, ok := s.marketData.(domain.BatchProvider); ok {
 		slog.InfoContext(ctx, "Using batch provider for quotes", "count", len(symbols))
 		quotes, quoteErrors = s.getQuotesBatch(ctx, batchProvider, symbols)
 	} else {
@@ -173,7 +172,7 @@ func (s *PortfolioService) AddPositionsBatch(ctx context.Context, requests []Add
 }
 
 // searchInstrumentsBatch uses the batch provider to search for instruments.
-func (s *PortfolioService) searchInstrumentsBatch(ctx context.Context, provider marketdata.BatchProvider, isins []string) (map[string]*domain.Instrument, map[string]error) {
+func (s *PortfolioService) searchInstrumentsBatch(ctx context.Context, provider domain.BatchProvider, isins []string) (map[string]*domain.Instrument, map[string]error) {
 	instruments := make(map[string]*domain.Instrument)
 	errors := make(map[string]error)
 
@@ -240,8 +239,8 @@ func (s *PortfolioService) searchInstrumentsConcurrent(ctx context.Context, isin
 }
 
 // getQuotesBatch uses the batch provider to get quotes.
-func (s *PortfolioService) getQuotesBatch(ctx context.Context, provider marketdata.BatchProvider, symbols []string) (map[string]*marketdata.QuoteResult, map[string]error) {
-	quotes := make(map[string]*marketdata.QuoteResult)
+func (s *PortfolioService) getQuotesBatch(ctx context.Context, provider domain.BatchProvider, symbols []string) (map[string]*domain.QuoteResult, map[string]error) {
+	quotes := make(map[string]*domain.QuoteResult)
 	errors := make(map[string]error)
 
 	results := provider.GetQuoteBatch(ctx, symbols)
@@ -258,14 +257,14 @@ func (s *PortfolioService) getQuotesBatch(ctx context.Context, provider marketda
 
 // getQuotesConcurrent gets quotes concurrently using goroutines and channels.
 // This is used as a fallback when the provider doesn't support batch operations.
-func (s *PortfolioService) getQuotesConcurrent(ctx context.Context, symbols []string) (map[string]*marketdata.QuoteResult, map[string]error) {
-	quotes := make(map[string]*marketdata.QuoteResult)
+func (s *PortfolioService) getQuotesConcurrent(ctx context.Context, symbols []string) (map[string]*domain.QuoteResult, map[string]error) {
+	quotes := make(map[string]*domain.QuoteResult)
 	errors := make(map[string]error)
 	var mu sync.Mutex
 
 	type quoteResult struct {
 		symbol string
-		quote  *marketdata.QuoteResult
+		quote  *domain.QuoteResult
 		err    error
 	}
 

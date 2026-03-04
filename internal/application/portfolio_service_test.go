@@ -7,7 +7,6 @@ import (
 
 	"github.com/cockroachdb/apd/v3"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 )
 
 // --- Mocks ---
@@ -55,7 +54,7 @@ type MockMarketData struct {
 	searchError error
 	quoteError  error
 	instrument  *domain.Instrument
-	quoteResult *marketdata.QuoteResult
+	quoteResult *domain.QuoteResult
 }
 
 func withDomainContext(t *testing.T, ctx *apd.Context, fn func()) {
@@ -89,14 +88,14 @@ func (m *MockMarketData) SearchByISIN(_ context.Context, isin string) (*domain.I
 	return &inst, nil
 }
 
-func (m *MockMarketData) GetQuote(_ context.Context, symbol string) (*marketdata.QuoteResult, error) {
+func (m *MockMarketData) GetQuote(_ context.Context, symbol string) (*domain.QuoteResult, error) {
 	if m.quoteError != nil {
 		return nil, m.quoteError
 	}
 	if m.quoteResult != nil {
 		return m.quoteResult, nil
 	}
-	return &marketdata.QuoteResult{
+	return &domain.QuoteResult{
 		Symbol:   symbol,
 		Price:    domain.NewDecimalFromInt(150),
 		Currency: "USD",
@@ -268,7 +267,7 @@ func TestAddPosition_UpdatePriceError(t *testing.T) {
 	withDomainContext(t, ctx, func() {
 		repo := &MockRepository{}
 		marketData := &MockMarketData{
-			quoteResult: &marketdata.QuoteResult{
+			quoteResult: &domain.QuoteResult{
 				Symbol:   "TESTSYM",
 				Price:    domain.NewDecimalFromInt(3),
 				Currency: "USD",
@@ -508,7 +507,7 @@ func TestRefreshPrices_UpdatePriceError(t *testing.T) {
 	withDomainContext(t, ctx, func() {
 		repo := &MockRepository{}
 		marketData := &MockMarketData{
-			quoteResult: &marketdata.QuoteResult{
+			quoteResult: &domain.QuoteResult{
 				Symbol:   "TESTSYM",
 				Price:    domain.NewDecimalFromInt(3),
 				Currency: "USD",

@@ -9,7 +9,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/sqldb"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
@@ -72,7 +71,7 @@ type MockIntegrationMarketData struct{}
 func (m *MockIntegrationMarketData) SearchByISIN(_ context.Context, _ string) (*domain.Instrument, error) {
 	return nil, nil
 }
-func (m *MockIntegrationMarketData) GetQuote(_ context.Context, _ string) (*marketdata.QuoteResult, error) {
+func (m *MockIntegrationMarketData) GetQuote(_ context.Context, _ string) (*domain.QuoteResult, error) {
 	return nil, nil
 }
 
