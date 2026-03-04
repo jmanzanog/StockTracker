@@ -2,6 +2,7 @@ package finnhub
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -325,6 +326,17 @@ func TestClient_SearchByISIN_NetworkError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to execute request")
 }
 
+func TestClient_SearchByISIN_RequestCreationError(t *testing.T) {
+	client := NewClient("test-api-key")
+	client.SetBaseURL("http://invalid-host\x7f")
+
+	instrument, err := client.SearchByISIN(context.Background(), "GB00B63H8491")
+
+	assert.Nil(t, instrument)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create request")
+}
+
 func TestClient_SearchByISIN_ContextCanceled(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond)
@@ -469,6 +481,17 @@ func TestClient_GetQuote_NetworkError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to execute request")
 }
 
+func TestClient_GetQuote_RequestCreationError(t *testing.T) {
+	client := NewClient("test-api-key")
+	client.SetBaseURL("http://invalid-host\x7f")
+
+	quote, err := client.GetQuote(context.Background(), "RR.L")
+
+	assert.Nil(t, quote)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create request")
+}
+
 func TestClient_GetQuote_ContextCanceled(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond)
@@ -574,28 +597,6 @@ func TestClient_ImplementsMDataProvider(t *testing.T) {
 }
 
 // Test response body close error logging (coverage for defer with error)
-func TestClient_SearchByISIN_ResponseBodyCloseError(t *testing.T) {
-	// Create a custom response body that errors on Close
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{
-			"count": 1,
-			"result": [{"description": "Test", "symbol": "TEST", "displaySymbol": "TEST", "type": "Stock"}]
-		}`))
-	}))
-	defer server.Close()
-
-	client := NewClient("test-api-key")
-	client.SetBaseURL(server.URL)
-
-	// This tests the normal path but ensures the defer block runs
-	instrument, err := client.SearchByISIN(context.Background(), "TEST_ISIN")
-
-	require.NoError(t, err)
-	assert.NotNil(t, instrument)
-}
-
 // Test with custom HTTP client timeout
 type slowRoundTripper struct{}
 
@@ -766,6 +767,75 @@ func TestClient_GetProfile_NetworkError(t *testing.T) {
 	assert.Nil(t, profile)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to execute request")
+}
+
+func TestClient_GetProfile_RequestCreationError(t *testing.T) {
+	client := NewClient("test-api-key")
+	client.SetBaseURL("http://invalid-host\x7f")
+
+	profile, err := client.getProfile(context.Background(), "AAPL")
+
+	assert.Nil(t, profile)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create request")
+}
+
+type closeErrorBody struct {
+	data []byte
+	read bool
+}
+
+func (b *closeErrorBody) Read(p []byte) (int, error) {
+	if b.read {
+		return 0, io.EOF
+	}
+	b.read = true
+	copy(p, b.data)
+	return len(b.data), io.EOF
+}
+
+func (b *closeErrorBody) Close() error {
+	return fmt.Errorf("close error")
+}
+
+type closeErrorRoundTripper struct{}
+
+func (c *closeErrorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	var body string
+	switch req.URL.Path {
+	case "/api/v1/search":
+		body = `{"count":1,"result":[{"description":"Test","symbol":"TEST","displaySymbol":"TEST","type":"Stock"}]}`
+	case "/api/v1/stock/profile2":
+		body = `{"currency":"USD","exchange":"NASDAQ"}`
+	case "/api/v1/quote":
+		body = `{"c":5.23,"pc":5.18,"t":1703433600}`
+	default:
+		body = `{}`
+	}
+
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       &closeErrorBody{data: []byte(body)},
+		Header:     make(http.Header),
+	}, nil
+}
+
+func TestClient_SearchByISIN_ResponseBodyCloseError(t *testing.T) {
+	client := NewClientWithHTTPClient("test-api-key", &http.Client{Transport: &closeErrorRoundTripper{}})
+
+	instrument, err := client.SearchByISIN(context.Background(), "TEST_ISIN")
+
+	require.NoError(t, err)
+	assert.NotNil(t, instrument)
+}
+
+func TestClient_GetQuote_ResponseBodyCloseError(t *testing.T) {
+	client := NewClientWithHTTPClient("test-api-key", &http.Client{Transport: &closeErrorRoundTripper{}})
+
+	quote, err := client.GetQuote(context.Background(), "RR.L")
+
+	require.NoError(t, err)
+	assert.NotNil(t, quote)
 }
 
 func TestClient_GetProfile_EmptyResponse(t *testing.T) {

@@ -507,6 +507,14 @@ func TestSearchByISINBatch(t *testing.T) {
 	}
 }
 
+func TestSearchByISINBatch_EmptyInput(t *testing.T) {
+	client := NewClient()
+	results := client.SearchByISINBatch(context.Background(), nil)
+	if len(results) != 0 {
+		t.Errorf("expected 0 results, got %d", len(results))
+	}
+}
+
 func TestGetQuoteBatch(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -595,6 +603,37 @@ func TestGetQuoteBatch(t *testing.T) {
 				t.Errorf("expected %d errors, got %d", tt.expectedErrors, actualErrors)
 			}
 		})
+	}
+}
+
+func TestGetQuoteBatch_EmptyInput(t *testing.T) {
+	client := NewClient()
+	results := client.GetQuoteBatch(context.Background(), nil)
+	if len(results) != 0 {
+		t.Errorf("expected 0 results, got %d", len(results))
+	}
+}
+
+func TestGetQuoteBatch_InvalidPrice(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"results": [
+				{"symbol": "AAPL", "price": "invalid", "currency": "USD", "time": "2024-01-01"}
+			],
+			"errors": []
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClientWithBaseURL(server.URL)
+	results := client.GetQuoteBatch(context.Background(), []string{"AAPL"})
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Error == nil {
+		t.Fatal("expected price parse error")
 	}
 }
 

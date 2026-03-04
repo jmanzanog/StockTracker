@@ -3,6 +3,8 @@ package domain
 import (
 	"errors"
 	"testing"
+
+	"github.com/cockroachdb/apd/v3"
 )
 
 // --- NewPortfolio Tests ---
@@ -499,4 +501,212 @@ func TestPortfolio_Clone(t *testing.T) {
 	if !clone.Positions[0].CurrentPrice.Equal(NewDecimalFromInt(100)) {
 		t.Errorf("Clone price changed unexpectedly, got %s", clone.Positions[0].CurrentPrice)
 	}
+}
+
+func TestAddPosition_MergeInvestedAmountError(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+
+	pos1 := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	_ = pos1.UpdatePrice(NewDecimalFromInt(1))
+	_ = p.AddPosition(pos1)
+
+	pos2 := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	_ = pos2.UpdatePrice(NewDecimalFromInt(1))
+	pos2.InvestedAmount, _ = NewDecimalFromString("0.03")
+
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		if err := p.AddPosition(pos2); err == nil {
+			t.Fatal("expected invested amount add error")
+		}
+	})
+}
+
+func TestAddPosition_MergeQuantityError(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+
+	pos1 := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	_ = pos1.UpdatePrice(NewDecimalFromInt(1))
+	_ = p.AddPosition(pos1)
+
+	pos2 := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	_ = pos2.UpdatePrice(NewDecimalFromInt(1))
+	pos2.Quantity, _ = NewDecimalFromString("0.03")
+
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		if err := p.AddPosition(pos2); err == nil {
+			t.Fatal("expected quantity add error")
+		}
+	})
+}
+
+func TestPortfolio_TotalValue_Error(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	pos.Quantity, _ = NewDecimalFromString("1.1")
+	pos.CurrentPrice, _ = NewDecimalFromString("1.1")
+	_ = p.AddPosition(pos)
+
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		if _, err := p.TotalValue(); err == nil {
+			t.Fatal("expected total value error")
+		}
+	})
+}
+
+func TestPortfolio_TotalInvested_Error(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	pos.InvestedAmount, _ = NewDecimalFromString("1.03")
+	_ = p.AddPosition(pos)
+
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		if _, err := p.TotalInvested(); err == nil {
+			t.Fatal("expected total invested error")
+		}
+	})
+}
+
+func TestPortfolio_TotalProfitLoss_TotalValueError(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	pos.Quantity, _ = NewDecimalFromString("1.1")
+	pos.CurrentPrice, _ = NewDecimalFromString("1.1")
+	_ = p.AddPosition(pos)
+
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		if _, err := p.TotalProfitLoss(); err == nil {
+			t.Fatal("expected total profit/loss error from total value")
+		}
+	})
+}
+
+func TestPortfolio_TotalProfitLoss_TotalInvestedError(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	pos.InvestedAmount, _ = NewDecimalFromString("1.03")
+	pos.CurrentPrice = Zero
+	_ = p.AddPosition(pos)
+
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		if _, err := p.TotalProfitLoss(); err == nil {
+			t.Fatal("expected total profit/loss error from total invested")
+		}
+	})
+}
+
+func TestPortfolio_TotalProfitLoss_SubError(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	pos.InvestedAmount, _ = NewDecimalFromString("0.03")
+	pos.Quantity = NewDecimalFromInt(1)
+	pos.CurrentPrice = NewDecimalFromInt(1)
+	_ = p.AddPosition(pos)
+
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		if _, err := p.TotalProfitLoss(); err == nil {
+			t.Fatal("expected sub error in total profit/loss")
+		}
+	})
+}
+
+func TestPortfolio_TotalProfitLossPercent_TotalInvestedError(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	pos.InvestedAmount, _ = NewDecimalFromString("1.03")
+	pos.CurrentPrice = Zero
+	_ = p.AddPosition(pos)
+
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		if _, err := p.TotalProfitLossPercent(); err == nil {
+			t.Fatal("expected total invested error in total profit/loss percent")
+		}
+	})
+}
+
+func TestPortfolio_TotalProfitLossPercent_ProfitLossError(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	pos.InvestedAmount, _ = NewDecimalFromString("0.03")
+	pos.Quantity = NewDecimalFromInt(1)
+	pos.CurrentPrice = NewDecimalFromInt(1)
+	_ = p.AddPosition(pos)
+
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		if _, err := p.TotalProfitLossPercent(); err == nil {
+			t.Fatal("expected profit/loss error in total profit/loss percent")
+		}
+	})
+}
+
+func TestPortfolio_TotalProfitLossPercent_DivError(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, NewDecimalFromInt(3), "USD")
+	pos.Quantity = NewDecimalFromInt(4)
+	pos.CurrentPrice = NewDecimalFromInt(1)
+	_ = p.AddPosition(pos)
+
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		if _, err := p.TotalProfitLossPercent(); err == nil {
+			t.Fatal("expected divide error in total profit/loss percent")
+		}
+	})
+}
+
+func TestPortfolio_TotalProfitLossPercent_MulOverflow(t *testing.T) {
+	p := NewPortfolio("Test Portfolio")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
+	pos.Quantity = NewDecimalFromInt(2)
+	pos.CurrentPrice = NewDecimalFromInt(1)
+	_ = p.AddPosition(pos)
+
+	ctx := apd.BaseContext.WithPrecision(10)
+	ctx.MaxExponent = 1
+	ctx.Traps = apd.Overflow
+
+	withDefaultContext(t, ctx, func() {
+		if _, err := p.TotalProfitLossPercent(); err == nil {
+			t.Fatal("expected multiply overflow in total profit/loss percent")
+		}
+	})
 }

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"math"
 	"testing"
+
+	"github.com/cockroachdb/apd/v3"
 )
 
 // --- Constructor Tests ---
@@ -195,6 +197,71 @@ func TestDecimal_Div_WithDecimals(t *testing.T) {
 	resultStr := result.String()
 	if len(resultStr) < 3 {
 		t.Errorf("expected division result to have decimal places, got %s", resultStr)
+	}
+}
+
+func TestDecimal_Scan_FloatNaN(t *testing.T) {
+	var d Decimal
+	if err := d.Scan(math.NaN()); err == nil {
+		t.Fatal("expected error when scanning NaN")
+	}
+}
+
+func TestDecimal_Add_Error(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		d1, _ := NewDecimalFromString("1")
+		d2, _ := NewDecimalFromString("0.03")
+		if _, err := d1.Add(d2); err == nil {
+			t.Fatal("expected add error")
+		}
+	})
+}
+
+func TestDecimal_Sub_Error(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		d1, _ := NewDecimalFromString("1")
+		d2, _ := NewDecimalFromString("0.03")
+		if _, err := d1.Sub(d2); err == nil {
+			t.Fatal("expected sub error")
+		}
+	})
+}
+
+func TestDecimal_Mul_Error(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		d1, _ := NewDecimalFromString("1.1")
+		d2, _ := NewDecimalFromString("1.1")
+		if _, err := d1.Mul(d2); err == nil {
+			t.Fatal("expected mul error")
+		}
+	})
+}
+
+func TestDecimal_Div_Error(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		d1, _ := NewDecimalFromString("1")
+		d2, _ := NewDecimalFromString("3")
+		if _, err := d1.Div(d2); err == nil {
+			t.Fatal("expected div error")
+		}
+	})
+}
+
+func TestDecimal_Round_MinInt32(t *testing.T) {
+	if _, err := NewDecimalFromInt(1).Round(math.MinInt32); err == nil {
+		t.Fatal("expected error for min int32 places")
 	}
 }
 
