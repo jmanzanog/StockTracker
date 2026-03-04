@@ -8,14 +8,14 @@ import (
 )
 
 type Position struct {
-	ID               string     `json:"id" gorm:"primaryKey"`
-	PortfolioID      string     `json:"-"` // Foreign Key for GORM
-	InstrumentISIN   string     `json:"-"` // Foreign Key to Instrument table
-	Instrument       Instrument `json:"instrument" gorm:"foreignKey:InstrumentISIN;references:ISIN"`
-	InvestedAmount   Decimal    `json:"invested_amount" gorm:"type:numeric"`
+	ID               string     `json:"id"`
+	PortfolioID      string     `json:"-"`
+	InstrumentISIN   string     `json:"-"`
+	Instrument       Instrument `json:"instrument"`
+	InvestedAmount   Decimal    `json:"invested_amount"`
 	InvestedCurrency string     `json:"invested_currency"`
-	Quantity         Decimal    `json:"quantity" gorm:"type:numeric"`
-	CurrentPrice     Decimal    `json:"current_price" gorm:"type:numeric"`
+	Quantity         Decimal    `json:"quantity"`
+	CurrentPrice     Decimal    `json:"current_price"`
 	LastUpdated      time.Time  `json:"last_updated"`
 }
 

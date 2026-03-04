@@ -12,7 +12,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/sqldb"
 	_ "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
@@ -256,7 +255,7 @@ func (m *MockMarketDataProvider) SearchByISIN(_ context.Context, isin string) (*
 	return &inst, nil
 }
 
-func (m *MockMarketDataProvider) GetQuote(_ context.Context, symbol string) (*marketdata.QuoteResult, error) {
+func (m *MockMarketDataProvider) GetQuote(_ context.Context, symbol string) (*domain.QuoteResult, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	priceStr, ok := m.prices[symbol]
@@ -267,7 +266,7 @@ func (m *MockMarketDataProvider) GetQuote(_ context.Context, symbol string) (*ma
 	if err != nil {
 		return nil, err
 	}
-	return &marketdata.QuoteResult{Symbol: symbol, Price: price, Currency: "EUR", Time: time.Now().Format(time.RFC3339)}, nil
+	return &domain.QuoteResult{Symbol: symbol, Price: price, Currency: "EUR", Time: time.Now().Format(time.RFC3339)}, nil
 }
 
 // MockBatchMarketDataProvider extends the mock to support batch operations.
@@ -279,20 +278,20 @@ func NewMockBatchMarketDataProvider() *MockBatchMarketDataProvider {
 	return &MockBatchMarketDataProvider{MockMarketDataProvider: NewMockMarketDataProvider()}
 }
 
-func (m *MockBatchMarketDataProvider) SearchByISINBatch(ctx context.Context, isins []string) []marketdata.SearchResult {
-	results := make([]marketdata.SearchResult, 0, len(isins))
+func (m *MockBatchMarketDataProvider) SearchByISINBatch(ctx context.Context, isins []string) []domain.SearchResult {
+	results := make([]domain.SearchResult, 0, len(isins))
 	for _, isin := range isins {
 		inst, err := m.SearchByISIN(ctx, isin)
-		results = append(results, marketdata.SearchResult{ISIN: isin, Instrument: inst, Error: err})
+		results = append(results, domain.SearchResult{ISIN: isin, Instrument: inst, Error: err})
 	}
 	return results
 }
 
-func (m *MockBatchMarketDataProvider) GetQuoteBatch(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
-	results := make([]marketdata.QuoteBatchResult, 0, len(symbols))
+func (m *MockBatchMarketDataProvider) GetQuoteBatch(ctx context.Context, symbols []string) []domain.QuoteBatchResult {
+	results := make([]domain.QuoteBatchResult, 0, len(symbols))
 	for _, symbol := range symbols {
 		quote, err := m.GetQuote(ctx, symbol)
-		results = append(results, marketdata.QuoteBatchResult{Symbol: symbol, Quote: quote, Error: err})
+		results = append(results, domain.QuoteBatchResult{Symbol: symbol, Quote: quote, Error: err})
 	}
 	return results
 }

@@ -7,17 +7,16 @@ import (
 	"sync"
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 )
 
 type PortfolioService struct {
 	mu               sync.RWMutex
 	repo             domain.PortfolioRepository
-	marketData       marketdata.MDataProvider
+	marketData       domain.MDataProvider
 	defaultPortfolio *domain.Portfolio
 }
 
-func NewPortfolioService(repo domain.PortfolioRepository, marketData marketdata.MDataProvider) (*PortfolioService, error) {
+func NewPortfolioService(repo domain.PortfolioRepository, marketData domain.MDataProvider) (*PortfolioService, error) {
 	ctx := context.Background()
 
 	// Try to find an existing "default" portfolio to avoid creating duplicates on restart

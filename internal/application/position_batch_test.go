@@ -6,24 +6,23 @@ import (
 	"testing"
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 )
 
 // mockBatchMarketData implements both MDataProvider and BatchProvider
 type mockBatchMarketData struct {
 	MockMarketData
-	searchByISINBatchFunc func(ctx context.Context, isins []string) []marketdata.SearchResult
-	getQuoteBatchFunc     func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult
+	searchByISINBatchFunc func(ctx context.Context, isins []string) []domain.SearchResult
+	getQuoteBatchFunc     func(ctx context.Context, symbols []string) []domain.QuoteBatchResult
 }
 
-func (m *mockBatchMarketData) SearchByISINBatch(ctx context.Context, isins []string) []marketdata.SearchResult {
+func (m *mockBatchMarketData) SearchByISINBatch(ctx context.Context, isins []string) []domain.SearchResult {
 	if m.searchByISINBatchFunc != nil {
 		return m.searchByISINBatchFunc(ctx, isins)
 	}
 	return nil
 }
 
-func (m *mockBatchMarketData) GetQuoteBatch(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
+func (m *mockBatchMarketData) GetQuoteBatch(ctx context.Context, symbols []string) []domain.QuoteBatchResult {
 	if m.getQuoteBatchFunc != nil {
 		return m.getQuoteBatchFunc(ctx, symbols)
 	}
@@ -55,24 +54,24 @@ func TestAddPositionsBatch_WithBatchProvider_Success(t *testing.T) {
 	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
 
 	provider := &mockBatchMarketData{
-		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
-			results := make([]marketdata.SearchResult, 0, len(isins))
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
+			results := make([]domain.SearchResult, 0, len(isins))
 			for _, isin := range isins {
 				inst := instrument
 				inst.ISIN = isin
-				results = append(results, marketdata.SearchResult{
+				results = append(results, domain.SearchResult{
 					ISIN:       isin,
 					Instrument: &inst,
 				})
 			}
 			return results
 		},
-		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
-			results := make([]marketdata.QuoteBatchResult, 0, len(symbols))
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []domain.QuoteBatchResult {
+			results := make([]domain.QuoteBatchResult, 0, len(symbols))
 			for _, symbol := range symbols {
-				results = append(results, marketdata.QuoteBatchResult{
+				results = append(results, domain.QuoteBatchResult{
 					Symbol: symbol,
-					Quote: &marketdata.QuoteResult{
+					Quote: &domain.QuoteResult{
 						Symbol:   symbol,
 						Price:    domain.NewDecimalFromInt(150),
 						Currency: "USD",
@@ -110,18 +109,18 @@ func TestAddPositionsBatch_WithBatchProvider_PartialFailure(t *testing.T) {
 	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
 
 	provider := &mockBatchMarketData{
-		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
-			results := make([]marketdata.SearchResult, 0, len(isins))
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
+			results := make([]domain.SearchResult, 0, len(isins))
 			for _, isin := range isins {
 				if isin == "INVALID" {
-					results = append(results, marketdata.SearchResult{
+					results = append(results, domain.SearchResult{
 						ISIN:  isin,
 						Error: fmt.Errorf("instrument not found"),
 					})
 				} else {
 					inst := instrument
 					inst.ISIN = isin
-					results = append(results, marketdata.SearchResult{
+					results = append(results, domain.SearchResult{
 						ISIN:       isin,
 						Instrument: &inst,
 					})
@@ -129,12 +128,12 @@ func TestAddPositionsBatch_WithBatchProvider_PartialFailure(t *testing.T) {
 			}
 			return results
 		},
-		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
-			results := make([]marketdata.QuoteBatchResult, 0, len(symbols))
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []domain.QuoteBatchResult {
+			results := make([]domain.QuoteBatchResult, 0, len(symbols))
 			for _, symbol := range symbols {
-				results = append(results, marketdata.QuoteBatchResult{
+				results = append(results, domain.QuoteBatchResult{
 					Symbol: symbol,
-					Quote: &marketdata.QuoteResult{
+					Quote: &domain.QuoteResult{
 						Symbol:   symbol,
 						Price:    domain.NewDecimalFromInt(150),
 						Currency: "USD",
@@ -197,24 +196,24 @@ func TestAddPositionsBatch_SaveError(t *testing.T) {
 	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
 
 	provider := &mockBatchMarketData{
-		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
-			results := make([]marketdata.SearchResult, 0, len(isins))
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
+			results := make([]domain.SearchResult, 0, len(isins))
 			for _, isin := range isins {
 				inst := instrument
 				inst.ISIN = isin
-				results = append(results, marketdata.SearchResult{
+				results = append(results, domain.SearchResult{
 					ISIN:       isin,
 					Instrument: &inst,
 				})
 			}
 			return results
 		},
-		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
-			results := make([]marketdata.QuoteBatchResult, 0, len(symbols))
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []domain.QuoteBatchResult {
+			results := make([]domain.QuoteBatchResult, 0, len(symbols))
 			for _, symbol := range symbols {
-				results = append(results, marketdata.QuoteBatchResult{
+				results = append(results, domain.QuoteBatchResult{
 					Symbol: symbol,
-					Quote: &marketdata.QuoteResult{
+					Quote: &domain.QuoteResult{
 						Symbol:   symbol,
 						Price:    domain.NewDecimalFromInt(150),
 						Currency: "USD",
@@ -253,13 +252,13 @@ func TestAddPositionsBatch_NilInstrumentSkipped(t *testing.T) {
 	repo := &MockRepository{}
 
 	provider := &mockBatchMarketData{
-		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
-			return []marketdata.SearchResult{
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
+			return []domain.SearchResult{
 				{ISIN: isins[0], Instrument: nil},
 			}
 		},
-		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
-			return []marketdata.QuoteBatchResult{}
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []domain.QuoteBatchResult {
+			return []domain.QuoteBatchResult{}
 		},
 	}
 
@@ -285,15 +284,15 @@ func TestAddPositionsBatch_NilQuoteSkipped(t *testing.T) {
 	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
 
 	provider := &mockBatchMarketData{
-		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
 			inst := instrument
 			inst.ISIN = isins[0]
-			return []marketdata.SearchResult{
+			return []domain.SearchResult{
 				{ISIN: isins[0], Instrument: &inst},
 			}
 		},
-		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
-			return []marketdata.QuoteBatchResult{
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []domain.QuoteBatchResult {
+			return []domain.QuoteBatchResult{
 				{Symbol: symbols[0], Quote: nil},
 			}
 		},
@@ -321,22 +320,22 @@ func TestAddPositionsBatch_QuoteError(t *testing.T) {
 	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
 
 	provider := &mockBatchMarketData{
-		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
-			results := make([]marketdata.SearchResult, 0, len(isins))
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
+			results := make([]domain.SearchResult, 0, len(isins))
 			for _, isin := range isins {
 				inst := instrument
 				inst.ISIN = isin
-				results = append(results, marketdata.SearchResult{
+				results = append(results, domain.SearchResult{
 					ISIN:       isin,
 					Instrument: &inst,
 				})
 			}
 			return results
 		},
-		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
-			results := make([]marketdata.QuoteBatchResult, 0, len(symbols))
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []domain.QuoteBatchResult {
+			results := make([]domain.QuoteBatchResult, 0, len(symbols))
 			for _, symbol := range symbols {
-				results = append(results, marketdata.QuoteBatchResult{
+				results = append(results, domain.QuoteBatchResult{
 					Symbol: symbol,
 					Error:  fmt.Errorf("quote API unavailable"),
 				})
@@ -369,13 +368,13 @@ func TestAddPositionsBatch_AddPositionError(t *testing.T) {
 	instrument := domain.NewInstrument("US123", "SYMBOL", "Name", domain.InstrumentTypeStock, "USD", "EXCH")
 
 	provider := &mockBatchMarketData{
-		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
-			return []marketdata.SearchResult{{ISIN: "US123", Instrument: &instrument}}
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
+			return []domain.SearchResult{{ISIN: "US123", Instrument: &instrument}}
 		},
-		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
-			return []marketdata.QuoteBatchResult{{
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []domain.QuoteBatchResult {
+			return []domain.QuoteBatchResult{{
 				Symbol: "SYMBOL",
-				Quote: &marketdata.QuoteResult{
+				Quote: &domain.QuoteResult{
 					Symbol: "SYMBOL",
 					Price:  domain.NewDecimalFromInt(100),
 				},
@@ -408,13 +407,13 @@ func TestAddPositionsBatch_InvalidPosition(t *testing.T) {
 	instrument := domain.NewInstrument("US123", "SYMBOL", "Name", domain.InstrumentTypeStock, "USD", "EXCH")
 
 	provider := &mockBatchMarketData{
-		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
-			return []marketdata.SearchResult{{ISIN: "US123", Instrument: &instrument}}
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
+			return []domain.SearchResult{{ISIN: "US123", Instrument: &instrument}}
 		},
-		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
-			return []marketdata.QuoteBatchResult{{
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []domain.QuoteBatchResult {
+			return []domain.QuoteBatchResult{{
 				Symbol: "SYMBOL",
-				Quote: &marketdata.QuoteResult{
+				Quote: &domain.QuoteResult{
 					Symbol: "SYMBOL",
 					Price:  domain.NewDecimalFromInt(100),
 				},
