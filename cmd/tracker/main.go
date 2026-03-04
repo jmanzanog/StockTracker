@@ -200,9 +200,12 @@ func run() error {
 	return nil
 }
 
+var runFunc = run
+var exitFunc = os.Exit
+
 func main() {
-	if err := run(); err != nil {
+	if err := runFunc(); err != nil {
 		slog.Error("Application error", "error", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 }

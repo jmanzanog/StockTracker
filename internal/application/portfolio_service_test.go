@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/cockroachdb/apd/v3"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
 )
@@ -53,11 +54,29 @@ func (m *MockRepository) Delete(_ context.Context, _ string) error {
 type MockMarketData struct {
 	searchError error
 	quoteError  error
+	instrument  *domain.Instrument
+	quoteResult *marketdata.QuoteResult
+}
+
+func withDomainContext(t *testing.T, ctx *apd.Context, fn func()) {
+	t.Helper()
+
+	original := domain.DefaultContext
+	domain.DefaultContext = ctx
+
+	t.Cleanup(func() {
+		domain.DefaultContext = original
+	})
+
+	fn()
 }
 
 func (m *MockMarketData) SearchByISIN(_ context.Context, isin string) (*domain.Instrument, error) {
 	if m.searchError != nil {
 		return nil, m.searchError
+	}
+	if m.instrument != nil {
+		return m.instrument, nil
 	}
 	inst := domain.NewInstrument(
 		isin,
@@ -73,6 +92,9 @@ func (m *MockMarketData) SearchByISIN(_ context.Context, isin string) (*domain.I
 func (m *MockMarketData) GetQuote(_ context.Context, symbol string) (*marketdata.QuoteResult, error) {
 	if m.quoteError != nil {
 		return nil, m.quoteError
+	}
+	if m.quoteResult != nil {
+		return m.quoteResult, nil
 	}
 	return &marketdata.QuoteResult{
 		Symbol:   symbol,
@@ -221,6 +243,44 @@ func TestAddPosition_RepositorySaveError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when repository save fails")
 	}
+}
+
+func TestAddPosition_InvalidInstrument(t *testing.T) {
+	repo := &MockRepository{}
+	invalidInst := domain.NewInstrument("", "", "", domain.InstrumentTypeStock, "USD", "")
+	marketData := &MockMarketData{
+		instrument: &invalidInst,
+	}
+	service, _ := NewPortfolioService(repo, marketData)
+	ctx := context.Background()
+
+	_, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
+
+	if err == nil {
+		t.Fatal("expected error when adding invalid instrument")
+	}
+}
+
+func TestAddPosition_UpdatePriceError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDomainContext(t, ctx, func() {
+		repo := &MockRepository{}
+		marketData := &MockMarketData{
+			quoteResult: &marketdata.QuoteResult{
+				Symbol:   "TESTSYM",
+				Price:    domain.NewDecimalFromInt(3),
+				Currency: "USD",
+				Time:     "2023-01-01",
+			},
+		}
+		service, _ := NewPortfolioService(repo, marketData)
+
+		if _, err := service.AddPosition(context.Background(), "US0000000001", domain.NewDecimalFromInt(1), "USD"); err == nil {
+			t.Fatal("expected error when UpdatePrice fails")
+		}
+	})
 }
 
 func TestRemovePosition_Success(t *testing.T) {
@@ -439,4 +499,30 @@ func TestRefreshPrices_RepositoryError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when repository save fails")
 	}
+}
+
+func TestRefreshPrices_UpdatePriceError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDomainContext(t, ctx, func() {
+		repo := &MockRepository{}
+		marketData := &MockMarketData{
+			quoteResult: &marketdata.QuoteResult{
+				Symbol:   "TESTSYM",
+				Price:    domain.NewDecimalFromInt(3),
+				Currency: "USD",
+				Time:     "2023-01-01",
+			},
+		}
+		service, _ := NewPortfolioService(repo, marketData)
+
+		inst := domain.NewInstrument("US0000000001", "TESTSYM", "Test", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1), "USD")
+		service.defaultPortfolio.Positions = []domain.Position{pos}
+
+		if err := service.RefreshPrices(context.Background()); err == nil {
+			t.Fatal("expected error when UpdatePrice fails during refresh")
+		}
+	})
 }

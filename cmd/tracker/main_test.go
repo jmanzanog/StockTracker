@@ -14,7 +14,9 @@ import (
 	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/config"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/finnhub"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/twelvedata"
+	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/yfinance"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -178,6 +180,102 @@ func TestBuildServer(t *testing.T) {
 
 	if server.Handler == nil {
 		t.Error("server handler is nil")
+	}
+}
+
+func TestCreateMarketDataClient_Providers(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		apiKey   string
+		url      string
+		assertFn func(t *testing.T, client interface{})
+	}{
+		{
+			name:     "twelvedata",
+			provider: config.MarketDataProviderTwelveData,
+			apiKey:   "test-key",
+			assertFn: func(t *testing.T, client interface{}) {
+				if _, ok := client.(*twelvedata.Client); !ok {
+					t.Fatal("expected TwelveData client")
+				}
+			},
+		},
+		{
+			name:     "finnhub",
+			provider: config.MarketDataProviderFinnhub,
+			apiKey:   "test-key",
+			assertFn: func(t *testing.T, client interface{}) {
+				if _, ok := client.(*finnhub.Client); !ok {
+					t.Fatal("expected Finnhub client")
+				}
+			},
+		},
+		{
+			name:     "yfinance",
+			provider: config.MarketDataProviderYFinance,
+			url:      "http://localhost:8000",
+			assertFn: func(t *testing.T, client interface{}) {
+				if _, ok := client.(*yfinance.Client); !ok {
+					t.Fatal("expected YFinance client")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				MarketDataProvider: tt.provider,
+				TwelveDataAPIKey:   tt.apiKey,
+				FinnhubAPIKey:      tt.apiKey,
+				YFinanceBaseURL:    tt.url,
+			}
+			client := createMarketDataClient(cfg)
+			tt.assertFn(t, client)
+		})
+	}
+}
+
+func TestRun_ConfigLoadError(t *testing.T) {
+	t.Setenv("DB_DSN", "")
+
+	if err := run(); err == nil {
+		t.Fatal("expected config load error")
+	}
+}
+
+func TestRun_InitializeDatabaseError(t *testing.T) {
+	t.Setenv("DB_DSN", "postgres://invalid")
+	t.Setenv("DB_DRIVER", "unsupported")
+	t.Setenv("MARKET_DATA_PROVIDER", config.MarketDataProviderTwelveData)
+	t.Setenv("TWELVE_DATA_API_KEY", "test-key")
+
+	if err := run(); err == nil {
+		t.Fatal("expected database initialization error")
+	}
+}
+
+func TestMain_ExitOnError(t *testing.T) {
+	originalRun := runFunc
+	originalExit := exitFunc
+	defer func() {
+		runFunc = originalRun
+		exitFunc = originalExit
+	}()
+
+	var exitCode int
+	runFunc = func() error {
+		return fmt.Errorf("boom")
+	}
+	exitFunc = func(code int) {
+		exitCode = code
+	}
+
+	main()
+
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d", exitCode)
 	}
 }
 

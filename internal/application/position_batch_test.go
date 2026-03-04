@@ -249,6 +249,72 @@ func TestAddPositionsBatch_SaveError(t *testing.T) {
 	}
 }
 
+func TestAddPositionsBatch_NilInstrumentSkipped(t *testing.T) {
+	repo := &MockRepository{}
+
+	provider := &mockBatchMarketData{
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
+			return []marketdata.SearchResult{
+				{ISIN: isins[0], Instrument: nil},
+			}
+		},
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
+			return []marketdata.QuoteBatchResult{}
+		},
+	}
+
+	service, err := NewPortfolioService(repo, provider)
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	requests := []AddPositionBatchRequest{
+		{ISIN: "US0378331005", InvestedAmount: domain.NewDecimalFromInt(1000), Currency: "USD"},
+	}
+
+	result := service.AddPositionsBatch(context.Background(), requests)
+
+	if len(result.Successful) != 0 || len(result.Failed) != 0 {
+		t.Fatalf("expected no results, got %d successful and %d failed", len(result.Successful), len(result.Failed))
+	}
+}
+
+func TestAddPositionsBatch_NilQuoteSkipped(t *testing.T) {
+	repo := &MockRepository{}
+
+	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+
+	provider := &mockBatchMarketData{
+		searchByISINBatchFunc: func(ctx context.Context, isins []string) []marketdata.SearchResult {
+			inst := instrument
+			inst.ISIN = isins[0]
+			return []marketdata.SearchResult{
+				{ISIN: isins[0], Instrument: &inst},
+			}
+		},
+		getQuoteBatchFunc: func(ctx context.Context, symbols []string) []marketdata.QuoteBatchResult {
+			return []marketdata.QuoteBatchResult{
+				{Symbol: symbols[0], Quote: nil},
+			}
+		},
+	}
+
+	service, err := NewPortfolioService(repo, provider)
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	requests := []AddPositionBatchRequest{
+		{ISIN: "US0378331005", InvestedAmount: domain.NewDecimalFromInt(1000), Currency: "USD"},
+	}
+
+	result := service.AddPositionsBatch(context.Background(), requests)
+
+	if len(result.Successful) != 0 || len(result.Failed) != 0 {
+		t.Fatalf("expected no results, got %d successful and %d failed", len(result.Successful), len(result.Failed))
+	}
+}
+
 func TestAddPositionsBatch_QuoteError(t *testing.T) {
 	repo := &MockRepository{}
 
