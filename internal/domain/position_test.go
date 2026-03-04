@@ -2,6 +2,8 @@ package domain
 
 import (
 	"testing"
+
+	"github.com/cockroachdb/apd/v3"
 )
 
 // --- NewPosition Tests ---
@@ -287,6 +289,89 @@ func TestPosition_ProfitLossPercent_ZeroInvestment(t *testing.T) {
 	if !percent.IsZero() {
 		t.Errorf("Expected zero P/L%% for zero investment, got %s", percent)
 	}
+}
+
+func TestPosition_UpdatePrice_DivError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+		position := NewPosition(instrument, NewDecimalFromInt(1), "USD")
+
+		if err := position.UpdatePrice(NewDecimalFromInt(3)); err == nil {
+			t.Fatal("expected error from UpdatePrice")
+		}
+	})
+}
+
+func TestPosition_CurrentValue_MulError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+		position := NewPosition(instrument, NewDecimalFromInt(1), "USD")
+
+		position.Quantity, _ = NewDecimalFromString("1.1")
+		position.CurrentPrice, _ = NewDecimalFromString("1.1")
+
+		if _, err := position.CurrentValue(); err == nil {
+			t.Fatal("expected error from CurrentValue")
+		}
+	})
+}
+
+func TestPosition_ProfitLoss_CurrentValueError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+		position := NewPosition(instrument, NewDecimalFromInt(1), "USD")
+
+		position.Quantity, _ = NewDecimalFromString("1.1")
+		position.CurrentPrice, _ = NewDecimalFromString("1.1")
+
+		if _, err := position.ProfitLoss(); err == nil {
+			t.Fatal("expected error from ProfitLoss")
+		}
+	})
+}
+
+func TestPosition_ProfitLoss_SubError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+		position := NewPosition(instrument, NewDecimalFromInt(0), "USD")
+
+		position.Quantity = NewDecimalFromInt(1)
+		position.CurrentPrice = NewDecimalFromInt(1)
+		position.InvestedAmount, _ = NewDecimalFromString("0.03")
+
+		if _, err := position.ProfitLoss(); err == nil {
+			t.Fatal("expected sub error from ProfitLoss")
+		}
+	})
+}
+
+func TestPosition_ProfitLossPercent_DivError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDefaultContext(t, ctx, func() {
+		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+		position := NewPosition(instrument, NewDecimalFromInt(3), "USD")
+
+		position.Quantity = NewDecimalFromInt(4)
+		position.CurrentPrice = NewDecimalFromInt(1)
+
+		if _, err := position.ProfitLossPercent(); err == nil {
+			t.Fatal("expected div error from ProfitLossPercent")
+		}
+	})
 }
 
 // --- IsValid Tests ---

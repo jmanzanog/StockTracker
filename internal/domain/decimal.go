@@ -74,11 +74,11 @@ func (d *Decimal) Scan(value interface{}) error {
 		d.SetInt64(v)
 		return nil
 	case float64:
-		_, err := d.SetFloat64(v)
-		if err != nil {
-			return err
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return fmt.Errorf("cannot scan NaN or Inf into Decimal")
 		}
-		return nil
+		_, err := d.SetFloat64(v)
+		return err
 	default:
 		return fmt.Errorf("unsupported type for Decimal scan: %T", value)
 	}

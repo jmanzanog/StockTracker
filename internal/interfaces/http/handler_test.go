@@ -10,6 +10,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/cockroachdb/apd/v3"
 	"github.com/gin-gonic/gin"
 	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
@@ -25,6 +26,19 @@ type MockPortfolioService struct {
 	listPositionsFunc       func(ctx context.Context) ([]domain.Position, error)
 	getPortfolioSummaryFunc func(ctx context.Context) (*domain.Portfolio, error)
 	refreshPricesFunc       func(ctx context.Context) error
+}
+
+func withDomainContext(t *testing.T, ctx *apd.Context, fn func()) {
+	t.Helper()
+
+	original := domain.DefaultContext
+	domain.DefaultContext = ctx
+
+	t.Cleanup(func() {
+		domain.DefaultContext = original
+	})
+
+	fn()
 }
 
 func (m *MockPortfolioService) AddPosition(ctx context.Context, isin string, amount domain.Decimal, currency string) (*domain.Position, error) {
@@ -634,6 +648,147 @@ func TestHandler_GetPortfolio_ServiceError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestHandler_GetPortfolio_TotalValueError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDomainContext(t, ctx, func() {
+		mockService := &MockPortfolioService{
+			getPortfolioSummaryFunc: func(ctx context.Context) (*domain.Portfolio, error) {
+				portfolio := domain.NewPortfolio("test-portfolio")
+				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+				position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1), "USD")
+				position.Quantity, _ = domain.NewDecimalFromString("1.1")
+				position.CurrentPrice, _ = domain.NewDecimalFromString("1.1")
+				_ = portfolio.AddPosition(position)
+				return &portfolio, nil
+			},
+		}
+
+		handler := NewHandler(mockService)
+		router := setupRouter(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/portfolio", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+	})
+}
+
+func TestHandler_GetPortfolio_TotalInvestedError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDomainContext(t, ctx, func() {
+		mockService := &MockPortfolioService{
+			getPortfolioSummaryFunc: func(ctx context.Context) (*domain.Portfolio, error) {
+				portfolio := domain.NewPortfolio("test-portfolio")
+				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+				position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1), "USD")
+				position.InvestedAmount, _ = domain.NewDecimalFromString("1.03")
+				position.CurrentPrice = domain.Zero
+				_ = portfolio.AddPosition(position)
+				return &portfolio, nil
+			},
+		}
+
+		handler := NewHandler(mockService)
+		router := setupRouter(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/portfolio", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+	})
+}
+
+func TestHandler_GetPortfolio_TotalProfitLossError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(1)
+	ctx.Traps = apd.Inexact | apd.Rounded
+
+	withDomainContext(t, ctx, func() {
+		mockService := &MockPortfolioService{
+			getPortfolioSummaryFunc: func(ctx context.Context) (*domain.Portfolio, error) {
+				portfolio := domain.NewPortfolio("test-portfolio")
+				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+				position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1), "USD")
+				position.InvestedAmount, _ = domain.NewDecimalFromString("0.03")
+				position.Quantity = domain.NewDecimalFromInt(1)
+				position.CurrentPrice = domain.NewDecimalFromInt(1)
+				_ = portfolio.AddPosition(position)
+				return &portfolio, nil
+			},
+		}
+
+		handler := NewHandler(mockService)
+		router := setupRouter(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/portfolio", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+	})
+}
+
+func TestHandler_GetPortfolio_TotalProfitLossPercentError(t *testing.T) {
+	ctx := apd.BaseContext.WithPrecision(10)
+	ctx.MaxExponent = 1
+	ctx.Traps = apd.Overflow
+
+	withDomainContext(t, ctx, func() {
+		mockService := &MockPortfolioService{
+			getPortfolioSummaryFunc: func(ctx context.Context) (*domain.Portfolio, error) {
+				portfolio := domain.NewPortfolio("test-portfolio")
+				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+				position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1), "USD")
+				position.Quantity = domain.NewDecimalFromInt(2)
+				position.CurrentPrice = domain.NewDecimalFromInt(1)
+				_ = portfolio.AddPosition(position)
+				return &portfolio, nil
+			},
+		}
+
+		handler := NewHandler(mockService)
+		router := setupRouter(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/portfolio", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+	})
+}
+
+func TestHandler_HealthCheck(t *testing.T) {
+	mockService := &MockPortfolioService{}
+	handler := NewHandler(mockService)
+	router := setupRouter(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
 	}
 }
 

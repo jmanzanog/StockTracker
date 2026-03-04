@@ -77,6 +77,9 @@ func (s *PortfolioService) AddPositionsBatch(ctx context.Context, requests []Add
 	symbols := make([]string, 0, len(instruments))
 	symbolToISIN := make(map[string]string)
 	for isin, inst := range instruments {
+		if inst == nil {
+			continue
+		}
 		symbols = append(symbols, inst.Symbol)
 		symbolToISIN[inst.Symbol] = isin
 	}
