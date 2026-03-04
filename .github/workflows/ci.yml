@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.25.7"
+  GO_VERSION: "1.26.0"
 
 jobs:
   lint-test:
@@ -73,7 +73,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.7.2
+          version: v2.10.1
 
       - name: Test (all tests including E2E with Testcontainers)
         run: go test -v ./... -race -coverprofile=coverage.txt -covermode=atomic -timeout 10m
