@@ -58,7 +58,7 @@ func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 		for existingRows.Next() {
 			var id string
 			if err := existingRows.Scan(&id); err != nil {
-				existingRows.Close()
+				_ = existingRows.Close()
 				return fmt.Errorf("scanning position id: %w", err)
 			}
 			if !newPositionIDs[id] {
@@ -66,12 +66,10 @@ func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 			}
 		}
 		if err := existingRows.Err(); err != nil {
-			existingRows.Close()
+			_ = existingRows.Close()
 			return fmt.Errorf("iterating positions: %w", err)
 		}
-		if err := existingRows.Close(); err != nil {
-			return fmt.Errorf("closing rows: %w", err)
-		}
+		_ = existingRows.Close()
 		for _, id := range orphans {
 			if _, err := tx.ExecContext(ctx, r.rebind("DELETE FROM positions WHERE id = $1"), id); err != nil {
 				return fmt.Errorf("deleting orphaned position %s: %w", id, err)
