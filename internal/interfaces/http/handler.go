@@ -4,6 +4,9 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jmanzanog/stock-tracker/internal/application"
@@ -23,11 +26,19 @@ type PortfolioService interface {
 
 type Handler struct {
 	portfolioService PortfolioService
+	dashboardService *application.DashboardService
 }
 
 func NewHandler(portfolioService PortfolioService) *Handler {
 	return &Handler{
 		portfolioService: portfolioService,
+	}
+}
+
+func NewHandlerWithDashboard(portfolioService PortfolioService, dashboardService *application.DashboardService) *Handler {
+	return &Handler{
+		portfolioService: portfolioService,
+		dashboardService: dashboardService,
 	}
 }
 
@@ -39,6 +50,59 @@ type AddPositionRequest struct {
 
 type ErrorResponse struct {
 	Error string `json:"error"`
+}
+
+type DashboardResponse struct {
+	PortfolioID   string                       `json:"portfolio_id"`
+	GeneratedAt   time.Time                    `json:"generated_at"`
+	TotalValue    string                       `json:"total_value"`
+	TotalInvested string                       `json:"total_invested"`
+	TotalPnL      string                       `json:"total_pnl"`
+	PnLPercent    string                       `json:"pnl_percent"`
+	ByCurrency    []CurrencyAllocationResponse `json:"by_currency"`
+	ByType        []TypeAllocationResponse     `json:"by_type"`
+	BySector      []SectorAllocationResponse   `json:"by_sector"`
+	Positions     []PositionDashboardResponse  `json:"positions"`
+}
+
+type CurrencyAllocationResponse struct {
+	Currency   string `json:"currency"`
+	TotalValue string `json:"total_value"`
+	Percent    string `json:"percent"`
+}
+
+type TypeAllocationResponse struct {
+	Type       string `json:"type"`
+	TotalValue string `json:"total_value"`
+	Percent    string `json:"percent"`
+}
+
+type SectorAllocationResponse struct {
+	Sector     string `json:"sector"`
+	TotalValue string `json:"total_value"`
+	Percent    string `json:"percent"`
+}
+
+type PositionDashboardResponse struct {
+	ID             string                              `json:"id"`
+	ISIN           string                              `json:"isin"`
+	Symbol         string                              `json:"symbol"`
+	Name           string                              `json:"name"`
+	Type           string                              `json:"type"`
+	Sector         string                              `json:"sector"`
+	Quantity       string                              `json:"quantity"`
+	CurrentPrice   string                              `json:"current_price"`
+	CurrentValue   string                              `json:"current_value"`
+	InvestedAmount string                              `json:"invested_amount"`
+	PnL            string                              `json:"pnl"`
+	PnLPercent     string                              `json:"pnl_percent"`
+	Currency       string                              `json:"currency"`
+	Sparklines     map[string][]SparklinePointResponse `json:"sparklines"`
+}
+
+type SparklinePointResponse struct {
+	Date  time.Time `json:"date"`
+	Price string    `json:"price"`
 }
 
 func (h *Handler) AddPosition(c *gin.Context) {
@@ -178,4 +242,120 @@ func (h *Handler) AddPositionsBatch(c *gin.Context) {
 	}
 
 	c.JSON(statusCode, result)
+}
+
+func (h *Handler) GetDashboard(c *gin.Context) {
+	if h.dashboardService == nil {
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "dashboard service not available"})
+		return
+	}
+
+	sparklineStr := c.DefaultQuery("sparklines", "7,30,90")
+	days := parseSparklineDays(sparklineStr)
+
+	snapshot, err := h.dashboardService.GetDashboard(c.Request.Context(), application.GetDashboardRequest{SparklineDays: days})
+	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "Failed to get dashboard", "error", err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	response := toDashboardResponse(snapshot)
+	c.JSON(http.StatusOK, response)
+}
+
+func toDashboardResponse(s *domain.DashboardSnapshot) DashboardResponse {
+	positions := make([]PositionDashboardResponse, 0, len(s.Positions))
+	for _, pos := range s.Positions {
+		sparklines := make(map[string][]SparklinePointResponse)
+		for key, points := range pos.Sparklines {
+			sparklinePoints := make([]SparklinePointResponse, 0, len(points))
+			for _, p := range points {
+				sparklinePoints = append(sparklinePoints, SparklinePointResponse{
+					Date:  p.Date,
+					Price: p.Price.String(),
+				})
+			}
+			sparklines[key] = sparklinePoints
+		}
+		positions = append(positions, PositionDashboardResponse{
+			ID:             pos.ID,
+			ISIN:           pos.ISIN,
+			Symbol:         pos.Symbol,
+			Name:           pos.Name,
+			Type:           string(pos.Type),
+			Sector:         pos.Sector,
+			Quantity:       pos.Quantity.String(),
+			CurrentPrice:   pos.CurrentPrice.String(),
+			CurrentValue:   pos.CurrentValue.String(),
+			InvestedAmount: pos.InvestedAmount.String(),
+			PnL:            pos.PnL.String(),
+			PnLPercent:     pos.PnLPercent.String(),
+			Currency:       pos.Currency,
+			Sparklines:     sparklines,
+		})
+	}
+
+	byCurrency := make([]CurrencyAllocationResponse, 0, len(s.ByCurrency))
+	for _, alloc := range s.ByCurrency {
+		byCurrency = append(byCurrency, CurrencyAllocationResponse{
+			Currency:   alloc.Currency,
+			TotalValue: alloc.TotalValue.String(),
+			Percent:    alloc.Percent.String(),
+		})
+	}
+
+	byType := make([]TypeAllocationResponse, 0, len(s.ByType))
+	for _, alloc := range s.ByType {
+		byType = append(byType, TypeAllocationResponse{
+			Type:       string(alloc.Type),
+			TotalValue: alloc.TotalValue.String(),
+			Percent:    alloc.Percent.String(),
+		})
+	}
+
+	bySector := make([]SectorAllocationResponse, 0, len(s.BySector))
+	for _, alloc := range s.BySector {
+		bySector = append(bySector, SectorAllocationResponse{
+			Sector:     alloc.Sector,
+			TotalValue: alloc.TotalValue.String(),
+			Percent:    alloc.Percent.String(),
+		})
+	}
+
+	return DashboardResponse{
+		PortfolioID:   s.PortfolioID,
+		GeneratedAt:   s.GeneratedAt,
+		TotalValue:    s.TotalValue.String(),
+		TotalInvested: s.TotalInvested.String(),
+		TotalPnL:      s.TotalPnL.String(),
+		PnLPercent:    s.PnLPercent.String(),
+		ByCurrency:    byCurrency,
+		ByType:        byType,
+		BySector:      bySector,
+		Positions:     positions,
+	}
+}
+
+const (
+	maxSparklineDays   = 365
+	maxSparklineRanges = 5
+)
+
+func parseSparklineDays(s string) []int {
+	parts := strings.Split(s, ",")
+	if len(parts) > maxSparklineRanges {
+		parts = parts[:maxSparklineRanges]
+	}
+
+	days := make([]int, 0, len(parts))
+	for _, p := range parts {
+		if d, err := strconv.Atoi(strings.TrimSpace(p)); err == nil && d > 0 && d <= maxSparklineDays {
+			days = append(days, d)
+		}
+	}
+	if len(days) == 0 {
+		days = []int{7, 30, 90}
+	}
+	return days
 }

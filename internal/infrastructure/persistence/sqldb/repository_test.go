@@ -248,7 +248,7 @@ func TestRepository_SaveAndFind(t *testing.T) {
 		err := repo.Save(ctx, &p)
 		assert.NoError(t, err)
 
-		inst := domain.NewInstrument("US123", "TEST", "Test Corp", domain.InstrumentTypeStock, "USD", "NYSE")
+		inst := domain.NewInstrument("US123", "TEST", "Test Corp", domain.InstrumentTypeStock, "USD", "NYSE", "Technology")
 		pos := domain.NewPosition(inst, domain.NewDecimalFromInt(100), "USD")
 		err = pos.UpdatePrice(domain.NewDecimalFromInt(10))
 		assert.NoError(t, err)
@@ -369,7 +369,7 @@ func TestRepository_Delete_WithPositions(t *testing.T) {
 		ctx := context.Background()
 
 		p := domain.NewPortfolio("Portfolio with Positions")
-		inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 		pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1000), "USD")
 		_ = pos.UpdatePrice(domain.NewDecimalFromInt(150))
 		_ = p.AddPosition(pos)
@@ -393,12 +393,12 @@ func TestRepository_Save_MultiplePositions(t *testing.T) {
 
 		p := domain.NewPortfolio("Multi Position Portfolio")
 
-		inst1 := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		inst1 := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 		pos1 := domain.NewPosition(inst1, domain.NewDecimalFromInt(1000), "USD")
 		_ = pos1.UpdatePrice(domain.NewDecimalFromInt(150))
 		_ = p.AddPosition(pos1)
 
-		inst2 := domain.NewInstrument("US002", "GOOGL", "Google", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		inst2 := domain.NewInstrument("US002", "GOOGL", "Google", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 		pos2 := domain.NewPosition(inst2, domain.NewDecimalFromInt(2000), "USD")
 		_ = pos2.UpdatePrice(domain.NewDecimalFromInt(2800))
 		_ = p.AddPosition(pos2)
@@ -420,7 +420,7 @@ func TestRepository_Save_UpdatePosition(t *testing.T) {
 
 		p := domain.NewPortfolio("Portfolio")
 
-		inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 		pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1000), "USD")
 		_ = pos.UpdatePrice(domain.NewDecimalFromInt(150))
 		_ = p.AddPosition(pos)
@@ -449,7 +449,7 @@ func TestRepository_Save_SameInstrument_MultiplePositions(t *testing.T) {
 
 		ctx := context.Background()
 
-		inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		inst := domain.NewInstrument("US001", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 
 		p1 := domain.NewPortfolio("Portfolio 1")
 		pos1 := domain.NewPosition(inst, domain.NewDecimalFromInt(1000), "USD")
@@ -481,7 +481,7 @@ func TestRepository_ConcurrentSaves_SamePortfolio(t *testing.T) {
 
 		// Create a portfolio with one position
 		p := domain.NewPortfolio("Concurrent Test Portfolio")
-		inst := domain.NewInstrument("US999", "CONC", "Concurrent Corp", domain.InstrumentTypeStock, "USD", "NYSE")
+		inst := domain.NewInstrument("US999", "CONC", "Concurrent Corp", domain.InstrumentTypeStock, "USD", "NYSE", "Technology")
 		pos := domain.NewPosition(inst, domain.NewDecimalFromInt(100), "USD")
 		_ = pos.UpdatePrice(domain.NewDecimalFromInt(50))
 		_ = p.AddPosition(pos)
@@ -515,7 +515,7 @@ func TestRepository_ConcurrentSaves_MultiplePortfolios_SameInstrument(t *testing
 		ctx := context.Background()
 
 		// Shared instrument
-		inst := domain.NewInstrument("SHARE001", "SHARED", "Shared Instrument", domain.InstrumentTypeStock, "USD", "NYSE")
+		inst := domain.NewInstrument("SHARE001", "SHARED", "Shared Instrument", domain.InstrumentTypeStock, "USD", "NYSE", "Technology")
 
 		const numPortfolios = 5
 		errChan := make(chan error, numPortfolios)
@@ -562,9 +562,9 @@ func TestRepository_ConcurrentSaves_RapidUpdates(t *testing.T) {
 		p := domain.NewPortfolio("Rapid Update Portfolio")
 
 		instruments := []domain.Instrument{
-			domain.NewInstrument("RAPID001", "R1", "Rapid 1", domain.InstrumentTypeStock, "USD", "NYSE"),
-			domain.NewInstrument("RAPID002", "R2", "Rapid 2", domain.InstrumentTypeStock, "USD", "NYSE"),
-			domain.NewInstrument("RAPID003", "R3", "Rapid 3", domain.InstrumentTypeStock, "USD", "NYSE"),
+			domain.NewInstrument("RAPID001", "R1", "Rapid 1", domain.InstrumentTypeStock, "USD", "NYSE", "Technology"),
+			domain.NewInstrument("RAPID002", "R2", "Rapid 2", domain.InstrumentTypeStock, "USD", "NYSE", "Technology"),
+			domain.NewInstrument("RAPID003", "R3", "Rapid 3", domain.InstrumentTypeStock, "USD", "NYSE", "Technology"),
 		}
 
 		for _, inst := range instruments {
@@ -639,12 +639,12 @@ func TestRepository_Save_RemovePosition_OrphanCleanup(t *testing.T) {
 
 		p := domain.NewPortfolio("Orphan Cleanup Portfolio")
 
-		inst1 := domain.NewInstrument("US100", "TEST1", "Test1", domain.InstrumentTypeStock, "USD", "NYSE")
+		inst1 := domain.NewInstrument("US100", "TEST1", "Test1", domain.InstrumentTypeStock, "USD", "NYSE", "Technology")
 		pos1 := domain.NewPosition(inst1, domain.NewDecimalFromInt(100), "USD")
 		_ = pos1.UpdatePrice(domain.NewDecimalFromInt(10))
 		_ = p.AddPosition(pos1)
 
-		inst2 := domain.NewInstrument("US200", "TEST2", "Test2", domain.InstrumentTypeStock, "USD", "NYSE")
+		inst2 := domain.NewInstrument("US200", "TEST2", "Test2", domain.InstrumentTypeStock, "USD", "NYSE", "Technology")
 		pos2 := domain.NewPosition(inst2, domain.NewDecimalFromInt(200), "USD")
 		_ = pos2.UpdatePrice(domain.NewDecimalFromInt(20))
 		_ = p.AddPosition(pos2)

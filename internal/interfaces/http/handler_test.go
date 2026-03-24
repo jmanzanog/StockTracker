@@ -112,7 +112,7 @@ func TestMain(m *testing.M) {
 func TestHandler_AddPosition_Success(t *testing.T) {
 	mockService := &MockPortfolioService{
 		addPositionFunc: func(ctx context.Context, isin string, amount domain.Decimal, currency string) (*domain.Position, error) {
-			instrument := domain.NewInstrument(isin, "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+			instrument := domain.NewInstrument(isin, "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 			position := domain.NewPosition(instrument, amount, currency)
 			price := domain.NewDecimalFromInt(150)
 			_ = position.UpdatePrice(price)
@@ -253,7 +253,7 @@ func TestHandler_AddPosition_ServiceError(t *testing.T) {
 func TestHandler_AddPositionsBatch_Success(t *testing.T) {
 	mockService := &MockPortfolioService{
 		addPositionsBatchFunc: func(ctx context.Context, requests []application.AddPositionBatchRequest) *application.AddPositionsBatchResult {
-			instrument := domain.NewInstrument(requests[0].ISIN, "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+			instrument := domain.NewInstrument(requests[0].ISIN, "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 			position := domain.NewPosition(instrument, requests[0].InvestedAmount, requests[0].Currency)
 
 			return &application.AddPositionsBatchResult{
@@ -296,7 +296,7 @@ func TestHandler_AddPositionsBatch_Success(t *testing.T) {
 func TestHandler_AddPositionsBatch_PartialSuccess(t *testing.T) {
 	mockService := &MockPortfolioService{
 		addPositionsBatchFunc: func(ctx context.Context, requests []application.AddPositionBatchRequest) *application.AddPositionsBatchResult {
-			instrument := domain.NewInstrument(requests[0].ISIN, "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+			instrument := domain.NewInstrument(requests[0].ISIN, "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 			position := domain.NewPosition(instrument, requests[0].InvestedAmount, requests[0].Currency)
 
 			return &application.AddPositionsBatchResult{
@@ -407,7 +407,7 @@ func TestHandler_AddPositionsBatch_AllFailed(t *testing.T) {
 func TestHandler_ListPositions_Success(t *testing.T) {
 	mockService := &MockPortfolioService{
 		listPositionsFunc: func(ctx context.Context) ([]domain.Position, error) {
-			instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+			instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 			position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1000), "USD")
 			return []domain.Position{position}, nil
 		},
@@ -489,7 +489,7 @@ func TestHandler_ListPositions_ServiceError(t *testing.T) {
 func TestHandler_GetPosition_Success(t *testing.T) {
 	mockService := &MockPortfolioService{
 		getPositionFunc: func(ctx context.Context, id string) (*domain.Position, error) {
-			instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+			instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 			position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1000), "USD")
 			position.ID = id
 			return &position, nil
@@ -595,7 +595,7 @@ func TestHandler_GetPortfolio_Success(t *testing.T) {
 	mockService := &MockPortfolioService{
 		getPortfolioSummaryFunc: func(ctx context.Context) (*domain.Portfolio, error) {
 			portfolio := domain.NewPortfolio("test-portfolio")
-			instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+			instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 			position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1000), "USD")
 			price := domain.NewDecimalFromInt(150)
 			_ = position.UpdatePrice(price)
@@ -659,7 +659,7 @@ func TestHandler_GetPortfolio_TotalValueError(t *testing.T) {
 		mockService := &MockPortfolioService{
 			getPortfolioSummaryFunc: func(ctx context.Context) (*domain.Portfolio, error) {
 				portfolio := domain.NewPortfolio("test-portfolio")
-				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 				position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1), "USD")
 				position.Quantity, _ = domain.NewDecimalFromString("1.1")
 				position.CurrentPrice, _ = domain.NewDecimalFromString("1.1")
@@ -690,7 +690,7 @@ func TestHandler_GetPortfolio_TotalInvestedError(t *testing.T) {
 		mockService := &MockPortfolioService{
 			getPortfolioSummaryFunc: func(ctx context.Context) (*domain.Portfolio, error) {
 				portfolio := domain.NewPortfolio("test-portfolio")
-				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 				position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1), "USD")
 				position.InvestedAmount, _ = domain.NewDecimalFromString("1.03")
 				position.CurrentPrice = domain.Zero
@@ -721,7 +721,7 @@ func TestHandler_GetPortfolio_TotalProfitLossError(t *testing.T) {
 		mockService := &MockPortfolioService{
 			getPortfolioSummaryFunc: func(ctx context.Context) (*domain.Portfolio, error) {
 				portfolio := domain.NewPortfolio("test-portfolio")
-				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 				position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1), "USD")
 				position.InvestedAmount, _ = domain.NewDecimalFromString("0.03")
 				position.Quantity = domain.NewDecimalFromInt(1)
@@ -754,7 +754,7 @@ func TestHandler_GetPortfolio_TotalProfitLossPercentError(t *testing.T) {
 		mockService := &MockPortfolioService{
 			getPortfolioSummaryFunc: func(ctx context.Context) (*domain.Portfolio, error) {
 				portfolio := domain.NewPortfolio("test-portfolio")
-				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+				instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 				position := domain.NewPosition(instrument, domain.NewDecimalFromInt(1), "USD")
 				position.Quantity = domain.NewDecimalFromInt(2)
 				position.CurrentPrice = domain.NewDecimalFromInt(1)
@@ -848,10 +848,6 @@ func TestHandler_RefreshPrices_ServiceError(t *testing.T) {
 func TestNewHandler(t *testing.T) {
 	mockService := &MockPortfolioService{}
 	handler := NewHandler(mockService)
-
-	if handler == nil {
-		t.Fatal("expected non-nil handler")
-	}
 
 	if handler.portfolioService == nil {
 		t.Error("expected non-nil portfolio service")

@@ -9,7 +9,7 @@ import (
 // --- NewPosition Tests ---
 
 func TestNewPosition(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	investedAmount := NewDecimalFromInt(1000)
 	currency := "USD"
 
@@ -43,7 +43,7 @@ func TestNewPosition(t *testing.T) {
 // --- UpdatePrice Tests ---
 
 func TestPosition_UpdatePrice(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, NewDecimalFromInt(10000), "USD")
 
 	price := NewDecimalFromInt(150)
@@ -66,7 +66,7 @@ func TestPosition_UpdatePrice(t *testing.T) {
 }
 
 func TestPosition_UpdatePrice_Zero(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, NewDecimalFromInt(1000), "USD")
 
 	err := position.UpdatePrice(Zero)
@@ -86,7 +86,7 @@ func TestPosition_UpdatePrice_Zero(t *testing.T) {
 }
 
 func TestPosition_UpdatePrice_Negative(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, NewDecimalFromInt(1000), "USD")
 
 	negativePrice := NewDecimalFromInt(-100)
@@ -105,7 +105,7 @@ func TestPosition_UpdatePrice_Negative(t *testing.T) {
 // --- CurrentValue Tests ---
 
 func TestPosition_CurrentValue(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, NewDecimalFromInt(10000), "USD")
 	err := position.UpdatePrice(NewDecimalFromInt(100))
 	if err != nil {
@@ -124,7 +124,7 @@ func TestPosition_CurrentValue(t *testing.T) {
 }
 
 func TestPosition_CurrentValue_WithPriceChange(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, NewDecimalFromInt(1000), "USD")
 
 	// Initial price: $100, Quantity: 10
@@ -147,7 +147,7 @@ func TestPosition_CurrentValue_WithPriceChange(t *testing.T) {
 // --- ProfitLoss Tests ---
 
 func TestPosition_ProfitLoss(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, NewDecimalFromInt(10000), "USD")
 
 	initialPrice := NewDecimalFromInt(100)
@@ -178,7 +178,7 @@ func TestPosition_ProfitLoss(t *testing.T) {
 }
 
 func TestPosition_ProfitLoss_Loss(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, NewDecimalFromInt(1000), "USD")
 
 	// Initial price: $100, Quantity: 10
@@ -199,7 +199,7 @@ func TestPosition_ProfitLoss_Loss(t *testing.T) {
 }
 
 func TestPosition_ProfitLoss_NoChange(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, NewDecimalFromInt(1000), "USD")
 
 	// Price stays the same
@@ -218,7 +218,7 @@ func TestPosition_ProfitLoss_NoChange(t *testing.T) {
 // --- ProfitLossPercent Tests ---
 
 func TestPosition_ProfitLossPercent(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, NewDecimalFromInt(10000), "USD")
 
 	initialPrice := NewDecimalFromInt(100)
@@ -249,7 +249,7 @@ func TestPosition_ProfitLossPercent(t *testing.T) {
 }
 
 func TestPosition_ProfitLossPercent_Loss(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, NewDecimalFromInt(1000), "USD")
 
 	// Initial price: $100
@@ -275,7 +275,7 @@ func TestPosition_ProfitLossPercent_Loss(t *testing.T) {
 }
 
 func TestPosition_ProfitLossPercent_ZeroInvestment(t *testing.T) {
-	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	position := NewPosition(instrument, Zero, "USD")
 
 	_ = position.UpdatePrice(NewDecimalFromInt(100))
@@ -296,7 +296,7 @@ func TestPosition_UpdatePrice_DivError(t *testing.T) {
 	ctx.Traps = apd.Inexact | apd.Rounded
 
 	withDefaultContext(t, ctx, func() {
-		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 		position := NewPosition(instrument, NewDecimalFromInt(1), "USD")
 
 		if err := position.UpdatePrice(NewDecimalFromInt(3)); err == nil {
@@ -310,7 +310,7 @@ func TestPosition_CurrentValue_MulError(t *testing.T) {
 	ctx.Traps = apd.Inexact | apd.Rounded
 
 	withDefaultContext(t, ctx, func() {
-		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 		position := NewPosition(instrument, NewDecimalFromInt(1), "USD")
 
 		position.Quantity, _ = NewDecimalFromString("1.1")
@@ -327,7 +327,7 @@ func TestPosition_ProfitLoss_CurrentValueError(t *testing.T) {
 	ctx.Traps = apd.Inexact | apd.Rounded
 
 	withDefaultContext(t, ctx, func() {
-		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 		position := NewPosition(instrument, NewDecimalFromInt(1), "USD")
 
 		position.Quantity, _ = NewDecimalFromString("1.1")
@@ -344,7 +344,7 @@ func TestPosition_ProfitLoss_SubError(t *testing.T) {
 	ctx.Traps = apd.Inexact | apd.Rounded
 
 	withDefaultContext(t, ctx, func() {
-		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 		position := NewPosition(instrument, NewDecimalFromInt(0), "USD")
 
 		position.Quantity = NewDecimalFromInt(1)
@@ -362,7 +362,7 @@ func TestPosition_ProfitLossPercent_DivError(t *testing.T) {
 	ctx.Traps = apd.Inexact | apd.Rounded
 
 	withDefaultContext(t, ctx, func() {
-		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ")
+		instrument := NewInstrument("US0378331005", "AAPL", "Apple Inc.", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 		position := NewPosition(instrument, NewDecimalFromInt(3), "USD")
 
 		position.Quantity = NewDecimalFromInt(4)
@@ -386,7 +386,7 @@ func TestPosition_IsValid(t *testing.T) {
 			name: "valid position",
 			position: Position{
 				ID:               "test-id",
-				Instrument:       NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ"),
+				Instrument:       NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology"),
 				InvestedAmount:   NewDecimalFromInt(1000),
 				InvestedCurrency: "USD",
 			},
@@ -396,7 +396,7 @@ func TestPosition_IsValid(t *testing.T) {
 			name: "empty ID",
 			position: Position{
 				ID:               "",
-				Instrument:       NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ"),
+				Instrument:       NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology"),
 				InvestedAmount:   NewDecimalFromInt(1000),
 				InvestedCurrency: "USD",
 			},
@@ -406,7 +406,7 @@ func TestPosition_IsValid(t *testing.T) {
 			name: "empty ISIN",
 			position: Position{
 				ID:               "test-id",
-				Instrument:       NewInstrument("", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ"),
+				Instrument:       NewInstrument("", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology"),
 				InvestedAmount:   NewDecimalFromInt(1000),
 				InvestedCurrency: "USD",
 			},
@@ -416,7 +416,7 @@ func TestPosition_IsValid(t *testing.T) {
 			name: "zero invested amount",
 			position: Position{
 				ID:               "test-id",
-				Instrument:       NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ"),
+				Instrument:       NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology"),
 				InvestedAmount:   Zero,
 				InvestedCurrency: "USD",
 			},
@@ -426,7 +426,7 @@ func TestPosition_IsValid(t *testing.T) {
 			name: "empty InvestedCurrency",
 			position: Position{
 				ID:               "test-id",
-				Instrument:       NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ"),
+				Instrument:       NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology"),
 				InvestedAmount:   NewDecimalFromInt(1000),
 				InvestedCurrency: "",
 			},
@@ -453,8 +453,9 @@ func TestNewInstrument(t *testing.T) {
 	instrumentType := InstrumentTypeStock
 	currency := "USD"
 	exchange := "NASDAQ"
+	sector := "Technology"
 
-	instrument := NewInstrument(isin, symbol, name, instrumentType, currency, exchange)
+	instrument := NewInstrument(isin, symbol, name, instrumentType, currency, exchange, sector)
 
 	if instrument.ISIN != isin {
 		t.Errorf("expected ISIN %s, got %s", isin, instrument.ISIN)
@@ -483,7 +484,7 @@ func TestInstrument_DifferentTypes(t *testing.T) {
 	}
 
 	for _, instType := range types {
-		inst := NewInstrument("TEST", "TST", "Test", instType, "USD", "NYSE")
+		inst := NewInstrument("TEST", "TST", "Test", instType, "USD", "NYSE", "Technology")
 		if inst.Type != instType {
 			t.Errorf("expected type %s, got %s", instType, inst.Type)
 		}

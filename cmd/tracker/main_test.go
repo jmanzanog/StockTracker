@@ -80,7 +80,7 @@ func TestInitializeDatabase_Success(t *testing.T) {
 		DBDSN:    connStr,
 	}
 
-	repo, err := initializeDatabase(cfg)
+	repo, priceHistoryRepo, err := initializeDatabase(cfg)
 	if err != nil {
 		t.Fatalf("initializeDatabase failed: %v", err)
 	}
@@ -88,6 +88,7 @@ func TestInitializeDatabase_Success(t *testing.T) {
 	if repo == nil {
 		t.Fatal("initializeDatabase returned nil repository")
 	}
+	_ = priceHistoryRepo // may be nil in tests
 
 	// Verify the repository is of the correct type
 	// We can't check for specific struct type easily if headers are private or using interface,
@@ -109,7 +110,7 @@ func TestInitializeDatabase_UnsupportedDriver(t *testing.T) {
 		DBDSN:    "invalid",
 	}
 
-	repo, err := initializeDatabase(cfg)
+	repo, priceHistoryRepo, err := initializeDatabase(cfg)
 
 	if err == nil {
 		t.Fatal("expected error for unsupported driver, got nil")
@@ -118,6 +119,7 @@ func TestInitializeDatabase_UnsupportedDriver(t *testing.T) {
 	if repo != nil {
 		t.Error("expected nil repository for unsupported driver")
 	}
+	_ = priceHistoryRepo
 
 	expectedError := "unsupported database driver"
 	if err.Error() != "unsupported database driver: unsupported" {
@@ -134,7 +136,7 @@ func TestInitializeDatabase_InvalidDSN(t *testing.T) {
 	// The current implementation of initializeDatabase pings the DB.
 	// So it should fail if DB is unreachable.
 
-	repo, err := initializeDatabase(cfg)
+	repo, priceHistoryRepo, err := initializeDatabase(cfg)
 
 	if err == nil {
 		// Wait, pgx might not fail on Open, but fails on Ping.
@@ -145,11 +147,13 @@ func TestInitializeDatabase_InvalidDSN(t *testing.T) {
 	if repo != nil {
 		t.Error("expected nil repository for invalid DSN")
 	}
+	_ = priceHistoryRepo
 }
 
 func TestBuildServer(t *testing.T) {
 	// Create a mock repository
 	mockRepo := &mockPortfolioRepository{}
+	mockPriceHistoryRepo := &mockPriceHistoryRepository{}
 
 	// Create a mock market data client
 	mockMarketData := twelvedata.NewClient("test-key")
@@ -160,6 +164,9 @@ func TestBuildServer(t *testing.T) {
 		t.Fatalf("failed to create portfolio service: %v", err)
 	}
 
+	// Create dashboard service
+	dashboardService := application.NewDashboardService(mockRepo, mockPriceHistoryRepo)
+
 	// Create config
 	cfg := &config.Config{
 		ServerHost: "localhost",
@@ -167,11 +174,7 @@ func TestBuildServer(t *testing.T) {
 	}
 
 	// Build server
-	server := buildServer(cfg, portfolioService)
-
-	if server == nil {
-		t.Fatal("buildServer returned nil server")
-	}
+	server := buildServer(cfg, portfolioService, dashboardService)
 
 	expectedAddr := "localhost:8080"
 	if server.Addr != expectedAddr {
@@ -284,8 +287,10 @@ func TestMain_ExitOnError(t *testing.T) {
 func TestApp_Shutdown(t *testing.T) {
 	// Create mock components
 	mockRepo := &mockPortfolioRepository{}
+	mockPriceHistoryRepo := &mockPriceHistoryRepository{}
 	mockMarketData := twelvedata.NewClient("test-key")
 	portfolioService, _ := application.NewPortfolioService(mockRepo, mockMarketData)
+	dashboardService := application.NewDashboardService(mockRepo, mockPriceHistoryRepo)
 
 	cfg := &config.Config{
 		ServerHost:           "localhost",
@@ -294,10 +299,10 @@ func TestApp_Shutdown(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	priceUpdater := application.NewPriceUpdater(portfolioService, cfg.PriceRefreshInterval)
+	priceUpdater := application.NewPriceUpdater(portfolioService, mockPriceHistoryRepo, cfg.PriceRefreshInterval)
 	go priceUpdater.Start(ctx)
 
-	server := buildServer(cfg, portfolioService)
+	server := buildServer(cfg, portfolioService, dashboardService)
 
 	app := &App{
 		Server:        server,
@@ -337,6 +342,30 @@ func (m *mockPortfolioRepository) Delete(_ context.Context, _ string) error {
 
 func (m *mockPortfolioRepository) AutoMigrate() error {
 	return nil
+}
+
+// --- Mock Price History Repository ---
+
+type mockPriceHistoryRepository struct{}
+
+func (m *mockPriceHistoryRepository) SaveBatch(_ context.Context, _ []domain.PriceHistory) error {
+	return nil
+}
+
+func (m *mockPriceHistoryRepository) GetByISIN(_ context.Context, _ string, _, _ time.Time) ([]domain.PriceHistory, error) {
+	return nil, nil
+}
+
+func (m *mockPriceHistoryRepository) GetSparkline(_ context.Context, _ string, _ int) ([]domain.PriceHistory, error) {
+	return nil, nil
+}
+
+func (m *mockPriceHistoryRepository) GetSparklinesBatch(_ context.Context, _ []domain.SparklineRequest) ([]domain.SparklineResult, error) {
+	return []domain.SparklineResult{}, nil
+}
+
+func (m *mockPriceHistoryRepository) CleanupOlderThan(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
 }
 
 // --- Benchmark ---
@@ -405,7 +434,7 @@ func TestFullInitializationFlow(t *testing.T) {
 	}
 
 	// Initialize database
-	repo, err := initializeDatabase(cfg)
+	repo, priceHistoryRepo, err := initializeDatabase(cfg)
 	if err != nil {
 		t.Fatalf("database initialization failed: %v", err)
 	}
@@ -419,11 +448,11 @@ func TestFullInitializationFlow(t *testing.T) {
 		t.Fatalf("portfolio service creation failed: %v", err)
 	}
 
+	// Create dashboard service
+	dashboardService := application.NewDashboardService(repo, priceHistoryRepo)
+
 	// Build server
-	server := buildServer(cfg, portfolioService)
-	if server == nil {
-		t.Fatal("failed to build server")
-	}
+	server := buildServer(cfg, portfolioService, dashboardService)
 
 	// Verify end-to-end: the server can handle requests
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)

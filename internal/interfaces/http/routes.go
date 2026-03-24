@@ -15,6 +15,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler) {
 
 		api.GET("/portfolio", handler.GetPortfolio)
 		api.POST("/portfolio/refresh", handler.RefreshPrices)
+		api.GET("/dashboard", handler.GetDashboard)
 	}
 
 	router.GET("/health", func(c *gin.Context) {

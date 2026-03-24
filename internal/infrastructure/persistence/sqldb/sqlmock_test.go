@@ -188,7 +188,7 @@ func TestRepository_Save_UpsertInstrumentError(t *testing.T) {
 
 	repo := NewRepository(New(db, &stubDialect{name: "postgres", upsertInstrumentErr: fmt.Errorf("instrument err")}))
 	portfolio := domain.NewPortfolio("test")
-	inst := domain.NewInstrument("US123", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+	inst := domain.NewInstrument("US123", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1), "USD")
 	portfolio.Positions = []domain.Position{pos}
 
@@ -215,7 +215,7 @@ func TestRepository_Save_UpsertPositionError(t *testing.T) {
 
 	repo := NewRepository(New(db, &stubDialect{name: "postgres", upsertPositionErr: fmt.Errorf("position err")}))
 	portfolio := domain.NewPortfolio("test")
-	inst := domain.NewInstrument("US123", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+	inst := domain.NewInstrument("US123", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1), "USD")
 	portfolio.Positions = []domain.Position{pos}
 

@@ -43,6 +43,7 @@ type symbolSearchResponse struct {
 		Exchange       string `json:"exchange"`
 		Currency       string `json:"currency"`
 		InstrumentType string `json:"instrument_type"`
+		Sector         string `json:"sector"`
 	} `json:"data"`
 	Status string `json:"status"`
 }
@@ -108,6 +109,7 @@ func (c *Client) SearchByISIN(ctx context.Context, isin string) (*domain.Instrum
 		instrumentType,
 		data.Currency,
 		data.Exchange,
+		data.Sector,
 	)
 
 	return &instrument, nil

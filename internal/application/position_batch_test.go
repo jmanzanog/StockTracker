@@ -51,7 +51,7 @@ func TestAddPositionsBatch_EmptyRequest(t *testing.T) {
 func TestAddPositionsBatch_WithBatchProvider_Success(t *testing.T) {
 	repo := &MockRepository{}
 
-	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 
 	provider := &mockBatchMarketData{
 		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
@@ -106,7 +106,7 @@ func TestAddPositionsBatch_WithBatchProvider_Success(t *testing.T) {
 func TestAddPositionsBatch_WithBatchProvider_PartialFailure(t *testing.T) {
 	repo := &MockRepository{}
 
-	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 
 	provider := &mockBatchMarketData{
 		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
@@ -193,7 +193,7 @@ func TestAddPositionsBatch_WithConcurrentFallback(t *testing.T) {
 func TestAddPositionsBatch_SaveError(t *testing.T) {
 	repo := &MockRepository{}
 
-	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 
 	provider := &mockBatchMarketData{
 		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
@@ -281,7 +281,7 @@ func TestAddPositionsBatch_NilInstrumentSkipped(t *testing.T) {
 func TestAddPositionsBatch_NilQuoteSkipped(t *testing.T) {
 	repo := &MockRepository{}
 
-	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 
 	provider := &mockBatchMarketData{
 		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
@@ -317,7 +317,7 @@ func TestAddPositionsBatch_NilQuoteSkipped(t *testing.T) {
 func TestAddPositionsBatch_QuoteError(t *testing.T) {
 	repo := &MockRepository{}
 
-	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ")
+	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 
 	provider := &mockBatchMarketData{
 		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
@@ -365,7 +365,7 @@ func TestAddPositionsBatch_QuoteError(t *testing.T) {
 
 func TestAddPositionsBatch_AddPositionError(t *testing.T) {
 	repo := &MockRepository{}
-	instrument := domain.NewInstrument("US123", "SYMBOL", "Name", domain.InstrumentTypeStock, "USD", "EXCH")
+	instrument := domain.NewInstrument("US123", "SYMBOL", "Name", domain.InstrumentTypeStock, "USD", "EXCH", "Technology")
 
 	provider := &mockBatchMarketData{
 		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {
@@ -404,7 +404,7 @@ func TestAddPositionsBatch_AddPositionError(t *testing.T) {
 
 func TestAddPositionsBatch_InvalidPosition(t *testing.T) {
 	repo := &MockRepository{}
-	instrument := domain.NewInstrument("US123", "SYMBOL", "Name", domain.InstrumentTypeStock, "USD", "EXCH")
+	instrument := domain.NewInstrument("US123", "SYMBOL", "Name", domain.InstrumentTypeStock, "USD", "EXCH", "Technology")
 
 	provider := &mockBatchMarketData{
 		searchByISINBatchFunc: func(ctx context.Context, isins []string) []domain.SearchResult {

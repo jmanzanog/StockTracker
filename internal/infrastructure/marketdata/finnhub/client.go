@@ -139,16 +139,18 @@ func (c *Client) SearchByISIN(ctx context.Context, isin string) (*domain.Instrum
 	// Get company profile to obtain currency and exchange
 	profile, err := c.getProfile(ctx, result.Symbol)
 
-	var currency, exchange string
+	var currency, exchange, sector string
 	if err != nil {
 		// Log warning but continue with extracted exchange (best effort)
 		slog.Warn("failed to get company profile, using fallback values",
 			"symbol", result.Symbol, "error", err)
 		exchange = extractExchange(result.Symbol)
 		currency = "USD" // Default fallback
+		sector = ""
 	} else {
 		currency = profile.Currency
 		exchange = profile.Exchange
+		sector = profile.FinnhubIndustry
 		// Use profile name if available (usually more complete)
 		if profile.Name != "" {
 			result.Description = profile.Name
@@ -162,6 +164,7 @@ func (c *Client) SearchByISIN(ctx context.Context, isin string) (*domain.Instrum
 		instrumentType,
 		currency,
 		exchange,
+		sector,
 	)
 
 	return &instrument, nil

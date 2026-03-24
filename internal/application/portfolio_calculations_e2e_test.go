@@ -251,7 +251,7 @@ func (m *MockMarketDataProvider) SearchByISIN(_ context.Context, isin string) (*
 	if !ok {
 		return nil, domain.ErrPositionNotFound
 	}
-	inst := domain.NewInstrument(cfg.isin, cfg.symbol, cfg.name, domain.InstrumentTypeETF, cfg.currency, "XETRA")
+	inst := domain.NewInstrument(cfg.isin, cfg.symbol, cfg.name, domain.InstrumentTypeETF, cfg.currency, "XETRA", "ETF")
 	return &inst, nil
 }
 
@@ -555,6 +555,7 @@ func TestPortfolioCalculations_E2E_PriceUpdaterCron(t *testing.T) {
 	runE2EWithBackends(t, func(t *testing.T, db *sqldb.DB) {
 		ctx := context.Background()
 		repo := sqldb.NewRepository(db)
+		priceHistoryRepo := sqldb.NewPriceHistoryRepository(db)
 		mockMarket := NewMockMarketDataProvider()
 		mockMarket.RegisterInstrument("CRON001", "CRON", "Cron Test ETF", "EUR", "100")
 
@@ -565,7 +566,7 @@ func TestPortfolioCalculations_E2E_PriceUpdaterCron(t *testing.T) {
 		require.NoError(t, err)
 
 		// Start PriceUpdater
-		updater := application.NewPriceUpdater(service, 50*time.Millisecond)
+		updater := application.NewPriceUpdater(service, priceHistoryRepo, 50*time.Millisecond)
 		updaterCtx, cancel := context.WithCancel(ctx)
 		go updater.Start(updaterCtx)
 

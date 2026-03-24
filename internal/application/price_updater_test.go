@@ -7,13 +7,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jmanzanog/stock-tracker/internal/domain"
+
 	"github.com/stretchr/testify/assert"
 )
 
 type mockPriceRefresher struct {
-	mu          sync.Mutex
-	refreshFunc func(ctx context.Context) error
-	callCount   int
+	mu               sync.Mutex
+	refreshFunc      func(ctx context.Context) error
+	getPortfolioFunc func(ctx context.Context) (*domain.Portfolio, error)
+	callCount        int
 }
 
 func (m *mockPriceRefresher) RefreshPrices(ctx context.Context) error {
@@ -26,45 +29,71 @@ func (m *mockPriceRefresher) RefreshPrices(ctx context.Context) error {
 	return nil
 }
 
+func (m *mockPriceRefresher) GetPortfolioSummary(ctx context.Context) (*domain.Portfolio, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.getPortfolioFunc != nil {
+		return m.getPortfolioFunc(ctx)
+	}
+	return &domain.Portfolio{Positions: []domain.Position{}}, nil
+}
+
 func (m *mockPriceRefresher) CallCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.callCount
 }
 
+type mockPriceHistoryRepo struct{}
+
+func (m *mockPriceHistoryRepo) SaveBatch(ctx context.Context, history []domain.PriceHistory) error {
+	return nil
+}
+
+func (m *mockPriceHistoryRepo) GetByISIN(ctx context.Context, isin string, from, to time.Time) ([]domain.PriceHistory, error) {
+	return nil, nil
+}
+
+func (m *mockPriceHistoryRepo) GetSparkline(ctx context.Context, isin string, days int) ([]domain.PriceHistory, error) {
+	return nil, nil
+}
+
+func (m *mockPriceHistoryRepo) GetSparklinesBatch(ctx context.Context, requests []domain.SparklineRequest) ([]domain.SparklineResult, error) {
+	return []domain.SparklineResult{}, nil
+}
+
+func (m *mockPriceHistoryRepo) CleanupOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
+	return 0, nil
+}
+
 func TestPriceUpdater_Start(t *testing.T) {
 	t.Run("Refreshes prices on interval", func(t *testing.T) {
 		mockRefresher := &mockPriceRefresher{}
-		// Use a very short interval for testing
+		mockHistoryRepo := &mockPriceHistoryRepo{}
 		interval := 10 * time.Millisecond
-		updater := NewPriceUpdater(mockRefresher, interval)
+		updater := NewPriceUpdater(mockRefresher, mockHistoryRepo, interval)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// Run Start in a goroutine
 		go updater.Start(ctx)
 
-		// Wait enough time for a few ticks
 		time.Sleep(100 * time.Millisecond)
 
 		updater.Stop()
 
-		// Assert that RefreshPrices was called at least once
 		assert.GreaterOrEqual(t, mockRefresher.CallCount(), 3)
 	})
 
 	t.Run("Stops on Stop() call", func(t *testing.T) {
 		mockRefresher := &mockPriceRefresher{}
-		updater := NewPriceUpdater(mockRefresher, 100*time.Millisecond)
+		mockHistoryRepo := &mockPriceHistoryRepo{}
+		updater := NewPriceUpdater(mockRefresher, mockHistoryRepo, 100*time.Millisecond)
 
 		go updater.Start(context.Background())
-		time.Sleep(20 * time.Millisecond) // Ensure it started
+		time.Sleep(20 * time.Millisecond)
 
 		updater.Stop()
-
-		// Wait to ensure it doesn't continue ticking (checking log locally is hard,
-		// but we can verify it doesn't block or panic)
 	})
 
 	t.Run("Handles Refresh Error gracefully", func(t *testing.T) {
@@ -73,7 +102,8 @@ func TestPriceUpdater_Start(t *testing.T) {
 				return errors.New("refresh failed")
 			},
 		}
-		updater := NewPriceUpdater(mockRefresher, 10*time.Millisecond)
+		mockHistoryRepo := &mockPriceHistoryRepo{}
+		updater := NewPriceUpdater(mockRefresher, mockHistoryRepo, 10*time.Millisecond)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -87,7 +117,8 @@ func TestPriceUpdater_Start(t *testing.T) {
 
 	t.Run("Stops on context cancellation", func(t *testing.T) {
 		mockRefresher := &mockPriceRefresher{}
-		updater := NewPriceUpdater(mockRefresher, 100*time.Millisecond)
+		mockHistoryRepo := &mockPriceHistoryRepo{}
+		updater := NewPriceUpdater(mockRefresher, mockHistoryRepo, 100*time.Millisecond)
 
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -95,7 +126,5 @@ func TestPriceUpdater_Start(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 
 		cancel()
-		// Wait ensures goroutine exits, not easily testable without a "done" channel on local structure,
-		// but verifying no data race or block is implicit.
 	})
 }
