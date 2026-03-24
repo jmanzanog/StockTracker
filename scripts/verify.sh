@@ -12,11 +12,18 @@
 #
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if [ -f scripts/ci.env ]; then
+  set -a
+  source scripts/ci.env
+  set +a
+fi
+
 GOLANGCI_LINT_VERSION="${GOLANGCI_LINT_VERSION:-v2.11.3}"
 GOSEC_VERSION="${GOSEC_VERSION:-v2.25.0}"
 GOVULNCHECK_VERSION="${GOVULNCHECK_VERSION:-latest}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
 
 # Fix git safe directory for CI/container environments (prevents VCS errors in go build)
 git config --global --add safe.directory "$ROOT" 2>/dev/null || true

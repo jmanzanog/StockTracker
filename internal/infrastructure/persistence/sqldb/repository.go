@@ -70,11 +70,18 @@ func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 			return fmt.Errorf("iterating positions: %w", err)
 		}
 		_ = existingRows.Close()
-		for _, id := range orphans {
-			if _, err := tx.ExecContext(ctx, r.rebind("DELETE FROM positions WHERE id = $1"), id); err != nil {
-				return fmt.Errorf("deleting orphaned position %s: %w", id, err)
+		if len(orphans) > 0 {
+			placeholders := make([]string, len(orphans))
+			args := make([]any, len(orphans))
+			for i, id := range orphans {
+				placeholders[i] = fmt.Sprintf("$%d", i+1)
+				args[i] = id
 			}
-			slog.Debug("Deleted orphaned position", "position_id", id, "portfolio_id", p.ID)
+			query := fmt.Sprintf("DELETE FROM positions WHERE id IN (%s)", strings.Join(placeholders, ", "))
+			if _, err := tx.ExecContext(ctx, r.rebind(query), args...); err != nil {
+				return fmt.Errorf("deleting orphaned positions: %w", err)
+			}
+			slog.Debug("Deleted orphaned positions", "count", len(orphans), "portfolio_id", p.ID)
 		}
 
 		return nil
@@ -286,9 +293,16 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 
 func (r *Repository) rebind(query string) string {
 	if r.db.Dialect.Name() == "oracle" {
-		for i := 1; i <= 10; i++ {
-			query = strings.ReplaceAll(query, fmt.Sprintf("$%d", i), fmt.Sprintf(":%d", i))
+		var sb strings.Builder
+		sb.Grow(len(query))
+		for i := 0; i < len(query); i++ {
+			if query[i] == '$' && i+1 < len(query) && query[i+1] >= '0' && query[i+1] <= '9' {
+				sb.WriteByte(':')
+			} else {
+				sb.WriteByte(query[i])
+			}
 		}
+		return sb.String()
 	}
 	return query
 }

@@ -6,9 +6,17 @@
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$GOLANGCI_LINT_VERSION = "v2.11.3"
-$GOSEC_VERSION = "v2.25.0"
-$GOVULNCHECK_VERSION = "latest"
+$ciEnvPath = Join-Path $PSScriptRoot "ci.env"
+if (Test-Path $ciEnvPath) {
+    Get-Content $ciEnvPath | Where-Object { $_ -match '=' -and $_ -notmatch '^#' } | ForEach-Object {
+        $name, $value = $_.Split('=', 2)
+        Set-Variable -Name $name.Trim() -Value $value.Trim() -Scope Script
+    }
+}
+
+if (-not $Script:GOLANGCI_LINT_VERSION) { $Script:GOLANGCI_LINT_VERSION = "v2.11.3" }
+if (-not $Script:GOSEC_VERSION) { $Script:GOSEC_VERSION = "v2.25.0" }
+if (-not $Script:GOVULNCHECK_VERSION) { $Script:GOVULNCHECK_VERSION = "latest" }
 $FAILED = $false
 $SKIPPED = @()
 
