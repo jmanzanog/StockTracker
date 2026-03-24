@@ -65,13 +65,12 @@ func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 		for existingRows.Next() {
 			var existingID string
 			if err := existingRows.Scan(&existingID); err != nil {
-				existingRows.Close()
+				_ = existingRows.Close()
 				return fmt.Errorf("scanning existing position id: %w", err)
 			}
 			if !newPositionIDs[existingID] {
-				// This position was removed from the in-memory portfolio — delete it from DB.
 				if _, err := tx.ExecContext(ctx, r.rebind("DELETE FROM positions WHERE id = $1"), existingID); err != nil {
-					existingRows.Close()
+					_ = existingRows.Close()
 					return fmt.Errorf("deleting orphaned position %s: %w", existingID, err)
 				}
 				slog.Debug("Deleted orphaned position", "position_id", existingID, "portfolio_id", p.ID)
@@ -80,7 +79,7 @@ func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 		if err := existingRows.Err(); err != nil {
 			return fmt.Errorf("iterating existing positions: %w", err)
 		}
-		existingRows.Close()
+		_ = existingRows.Close()
 
 		return nil
 	})
