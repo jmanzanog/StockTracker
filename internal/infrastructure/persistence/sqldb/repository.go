@@ -19,7 +19,6 @@ func NewRepository(db *DB) *Repository {
 	return &Repository{db: db}
 }
 
-// AutoMigrate runs pending migrations via the dialect.
 func (r *Repository) AutoMigrate() error {
 	return r.db.Dialect.Migrate(context.Background(), r.db.DB)
 }
@@ -27,19 +26,16 @@ func (r *Repository) AutoMigrate() error {
 func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 	p.LastUpdated = time.Now()
 	return r.db.WithTx(ctx, func(tx *sql.Tx) error {
-		// Upsert Portfolio
 		if err := r.db.Dialect.UpsertPortfolio(ctx, tx, p); err != nil {
 			slog.Error("Failed to save portfolio", "portfolio_id", p.ID, "error", err)
 			return fmt.Errorf("upsert portfolio: %w", err)
 		}
 
-		// Collect new position IDs for orphan detection
 		newPositionIDs := make(map[string]bool)
 		for _, pos := range p.Positions {
 			newPositionIDs[pos.ID] = true
 		}
 
-		// Upsert Instruments and Positions
 		for i := range p.Positions {
 			// Ensure instrument exists
 			if err := r.db.Dialect.UpsertInstrument(ctx, tx, &p.Positions[i].Instrument); err != nil {
@@ -50,14 +46,12 @@ func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 			// Ensure portfolio ID is set
 			p.Positions[i].PortfolioID = p.ID
 
-			// Upsert Position
 			if err := r.db.Dialect.UpsertPosition(ctx, tx, &p.Positions[i]); err != nil {
 				slog.Error("Failed to save position", "position_id", p.Positions[i].ID, "error", err)
 				return fmt.Errorf("upsert position: %w", err)
 			}
 		}
 
-		// Delete orphaned positions no longer in the portfolio.
 		existingRows, err := tx.QueryContext(ctx, r.rebind("SELECT id FROM positions WHERE portfolio_id = $1"), p.ID)
 		if err != nil {
 			return fmt.Errorf("query existing positions for orphan cleanup: %w", err)
@@ -274,13 +268,11 @@ func (r *Repository) FindAll(ctx context.Context) ([]*domain.Portfolio, error) {
 
 func (r *Repository) Delete(ctx context.Context, id string) error {
 	return r.db.WithTx(ctx, func(tx *sql.Tx) error {
-		// Delete Positions
 		q1 := r.rebind("DELETE FROM positions WHERE portfolio_id = $1")
 		if _, err := tx.ExecContext(ctx, q1, id); err != nil {
 			return fmt.Errorf("failed to delete positions: %w", err)
 		}
 
-		// Delete Portfolio
 		q2 := r.rebind("DELETE FROM portfolios WHERE id = $1")
 		if _, err := tx.ExecContext(ctx, q2, id); err != nil {
 			return fmt.Errorf("failed to delete portfolio: %w", err)

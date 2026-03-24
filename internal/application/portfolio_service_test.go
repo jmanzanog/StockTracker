@@ -292,10 +292,8 @@ func TestRemovePosition_Success(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// First add a position
 	pos, _ := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 
-	// Then remove it
 	err := service.RemovePosition(ctx, pos.ID)
 
 	if err != nil {
@@ -322,10 +320,8 @@ func TestRemovePosition_RepositoryError(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Add a position first
 	pos, _ := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 
-	// Set repository error
 	repo.saveError = fmt.Errorf("database error")
 
 	err := service.RemovePosition(ctx, pos.ID)
@@ -341,10 +337,8 @@ func TestGetPosition_Success(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Add a position first
 	addedPos, _ := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 
-	// Retrieve it
 	pos, err := service.GetPosition(ctx, addedPos.ID)
 
 	if err != nil {
@@ -375,7 +369,6 @@ func TestListPositions_Success(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Initially empty
 	positions, err := service.ListPositions(ctx)
 	if err != nil {
 		t.Fatalf("ListPositions failed: %v", err)
@@ -384,7 +377,6 @@ func TestListPositions_Success(t *testing.T) {
 		t.Errorf("expected 0 positions, got %d", len(positions))
 	}
 
-	// Add some positions
 	_, err = service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 	if err != nil {
 		t.Fatalf("AddPosition failed: %v", err)
@@ -430,7 +422,6 @@ func TestRefreshPrices_Success(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Add a position
 	_, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 	if err != nil {
 		t.Fatalf("AddPosition failed: %v", err)
@@ -449,7 +440,6 @@ func TestRefreshPrices_EmptyPortfolio(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// No positions
 	err := service.RefreshPrices(ctx)
 
 	if err != nil {
@@ -465,14 +455,12 @@ func TestRefreshPrices_MarketDataError(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Add a position first (before setting quote error)
 	marketData.quoteError = nil
 	_, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 	if err != nil {
 		t.Fatalf("AddPosition failed: %v", err)
 	}
 
-	// Now set the error
 	marketData.quoteError = fmt.Errorf("API rate limit exceeded")
 
 	err = service.RefreshPrices(ctx)
@@ -488,13 +476,11 @@ func TestRefreshPrices_RepositoryError(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Add a position
 	_, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 	if err != nil {
 		t.Fatalf("AddPosition failed: %v", err)
 	}
 
-	// Set repository error
 	repo.saveError = fmt.Errorf("database connection lost")
 
 	err = service.RefreshPrices(ctx)
