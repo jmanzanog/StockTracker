@@ -33,7 +33,6 @@ func NewPortfolioService(repo domain.PortfolioRepository, marketData domain.MDat
 		}
 	}
 
-	// If not found, create a new one
 	if defaultPortfolio == nil {
 		newP := domain.NewPortfolio("default")
 		defaultPortfolio = &newP
@@ -83,7 +82,6 @@ func (s *PortfolioService) AddPosition(ctx context.Context, isin string, investe
 		return nil, fmt.Errorf("failed to save portfolio: %w", err)
 	}
 
-	// Return the position from the portfolio (handles both new and merged duplicate ISIN).
 	for i := range s.defaultPortfolio.Positions {
 		if s.defaultPortfolio.Positions[i].Instrument.ISIN == instrument.ISIN {
 			result := s.defaultPortfolio.Positions[i]
@@ -119,7 +117,6 @@ func (s *PortfolioService) GetPosition(ctx context.Context, positionID string) (
 		return nil, fmt.Errorf("failed to get position: %w", err)
 	}
 
-	// Return a copy
 	posCopy := *position
 	return &posCopy, nil
 }
@@ -130,7 +127,6 @@ func (s *PortfolioService) ListPositions(ctx context.Context) ([]domain.Position
 
 	slog.DebugContext(ctx, "listing positions", "count", len(s.defaultPortfolio.Positions))
 
-	// Return a deep copy of the slice
 	positions := make([]domain.Position, len(s.defaultPortfolio.Positions))
 	copy(positions, s.defaultPortfolio.Positions)
 	return positions, nil
@@ -142,7 +138,6 @@ func (s *PortfolioService) GetPortfolioSummary(ctx context.Context) (*domain.Por
 
 	slog.DebugContext(ctx, "getting portfolio summary", "portfolio_id", s.defaultPortfolio.ID)
 
-	// Return a deep copy
 	clone := s.defaultPortfolio.Clone()
 	return &clone, nil
 }
