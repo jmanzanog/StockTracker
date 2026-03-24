@@ -9,13 +9,12 @@ import (
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 )
 
-// --- Mocks ---
-
 type MockRepository struct {
-	portfolio   *domain.Portfolio
-	saveError   error
-	findError   error
-	deleteError error
+	portfolio      *domain.Portfolio
+	saveError      error
+	findError      error
+	deleteError    error
+	savedPortfolio *domain.Portfolio // captures what was passed to Save for verification
 }
 
 func (m *MockRepository) Save(_ context.Context, p *domain.Portfolio) error {
@@ -23,6 +22,9 @@ func (m *MockRepository) Save(_ context.Context, p *domain.Portfolio) error {
 		return m.saveError
 	}
 	m.portfolio = p
+	// Store a deep copy so tests can inspect what was saved
+	clone := p.Clone()
+	m.savedPortfolio = &clone
 	return nil
 }
 
@@ -102,8 +104,6 @@ func (m *MockMarketData) GetQuote(_ context.Context, symbol string) (*domain.Quo
 		Time:     "2023-01-01",
 	}, nil
 }
-
-// --- Tests ---
 
 func TestNewPortfolioService_Success(t *testing.T) {
 	repo := &MockRepository{}
@@ -288,10 +288,8 @@ func TestRemovePosition_Success(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// First add a position
 	pos, _ := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 
-	// Then remove it
 	err := service.RemovePosition(ctx, pos.ID)
 
 	if err != nil {
@@ -318,10 +316,8 @@ func TestRemovePosition_RepositoryError(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Add a position first
 	pos, _ := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 
-	// Set repository error
 	repo.saveError = fmt.Errorf("database error")
 
 	err := service.RemovePosition(ctx, pos.ID)
@@ -337,10 +333,8 @@ func TestGetPosition_Success(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Add a position first
 	addedPos, _ := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 
-	// Retrieve it
 	pos, err := service.GetPosition(ctx, addedPos.ID)
 
 	if err != nil {
@@ -371,7 +365,6 @@ func TestListPositions_Success(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Initially empty
 	positions, err := service.ListPositions(ctx)
 	if err != nil {
 		t.Fatalf("ListPositions failed: %v", err)
@@ -380,7 +373,6 @@ func TestListPositions_Success(t *testing.T) {
 		t.Errorf("expected 0 positions, got %d", len(positions))
 	}
 
-	// Add some positions
 	_, err = service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 	if err != nil {
 		t.Fatalf("AddPosition failed: %v", err)
@@ -426,7 +418,6 @@ func TestRefreshPrices_Success(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Add a position
 	_, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 	if err != nil {
 		t.Fatalf("AddPosition failed: %v", err)
@@ -445,7 +436,6 @@ func TestRefreshPrices_EmptyPortfolio(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// No positions
 	err := service.RefreshPrices(ctx)
 
 	if err != nil {
@@ -461,14 +451,12 @@ func TestRefreshPrices_MarketDataError(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Add a position first (before setting quote error)
 	marketData.quoteError = nil
 	_, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 	if err != nil {
 		t.Fatalf("AddPosition failed: %v", err)
 	}
 
-	// Now set the error
 	marketData.quoteError = fmt.Errorf("API rate limit exceeded")
 
 	err = service.RefreshPrices(ctx)
@@ -484,13 +472,11 @@ func TestRefreshPrices_RepositoryError(t *testing.T) {
 	service, _ := NewPortfolioService(repo, marketData)
 	ctx := context.Background()
 
-	// Add a position
 	_, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
 	if err != nil {
 		t.Fatalf("AddPosition failed: %v", err)
 	}
 
-	// Set repository error
 	repo.saveError = fmt.Errorf("database connection lost")
 
 	err = service.RefreshPrices(ctx)
@@ -524,4 +510,80 @@ func TestRefreshPrices_UpdatePriceError(t *testing.T) {
 			t.Fatal("expected error when UpdatePrice fails during refresh")
 		}
 	})
+}
+
+// RemovePosition must persist deletion: Save() must not leave orphaned rows in DB.
+func TestRemovePosition_PersistsDeletion(t *testing.T) {
+	repo := &MockRepository{}
+	marketData := &MockMarketData{}
+	service, _ := NewPortfolioService(repo, marketData)
+	ctx := context.Background()
+
+	pos1, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
+	if err != nil {
+		t.Fatalf("AddPosition failed: %v", err)
+	}
+	_, err = service.AddPosition(ctx, "US0000000002", domain.NewDecimalFromInt(2000), "USD")
+	if err != nil {
+		t.Fatalf("AddPosition failed: %v", err)
+	}
+
+	if len(repo.savedPortfolio.Positions) != 2 {
+		t.Fatalf("expected 2 positions, got %d", len(repo.savedPortfolio.Positions))
+	}
+
+	err = service.RemovePosition(ctx, pos1.ID)
+	if err != nil {
+		t.Fatalf("RemovePosition failed: %v", err)
+	}
+
+	if repo.savedPortfolio == nil {
+		t.Fatal("savedPortfolio is nil — Save was never called")
+	}
+	if len(repo.savedPortfolio.Positions) != 1 {
+		t.Fatalf("expected 1 position after removal, got %d", len(repo.savedPortfolio.Positions))
+	}
+	if repo.savedPortfolio.Positions[0].ID == pos1.ID {
+		t.Fatal("removed position should not appear in the saved portfolio")
+	}
+	if repo.savedPortfolio.Positions[0].Instrument.ISIN == "" {
+		t.Error("remaining position should still have valid ISIN")
+	}
+}
+
+// AddPosition with duplicate ISIN must return the merged position, not the pre-merge temporary.
+func TestAddPosition_DuplicateISIN_ReturnsMergedPosition(t *testing.T) {
+	repo := &MockRepository{}
+	marketData := &MockMarketData{}
+	service, _ := NewPortfolioService(repo, marketData)
+	ctx := context.Background()
+
+	_, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
+	if err != nil {
+		t.Fatalf("AddPosition failed: %v", err)
+	}
+
+	pos2, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(500), "USD")
+	if err != nil {
+		t.Fatalf("AddPosition failed: %v", err)
+	}
+
+	expectedInvested := domain.NewDecimalFromInt(1500)
+	if !pos2.InvestedAmount.Equal(expectedInvested) {
+		t.Errorf("InvestedAmount: expected %s, got %s", expectedInvested, pos2.InvestedAmount)
+	}
+
+	expectedQty := domain.NewDecimalFromInt(10)
+	if !pos2.Quantity.Equal(expectedQty) {
+		t.Errorf("Quantity: expected %s, got %s", expectedQty, pos2.Quantity)
+	}
+
+	expectedPrice := domain.NewDecimalFromInt(150)
+	if !pos2.CurrentPrice.Equal(expectedPrice) {
+		t.Errorf("CurrentPrice: expected %s, got %s", expectedPrice, pos2.CurrentPrice)
+	}
+
+	if len(repo.savedPortfolio.Positions) != 1 {
+		t.Errorf("expected 1 position in portfolio after duplicate ISIN add, got %d", len(repo.savedPortfolio.Positions))
+	}
 }
