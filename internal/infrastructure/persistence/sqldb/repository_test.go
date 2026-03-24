@@ -631,3 +631,59 @@ func TestRepository_LastUpdated(t *testing.T) {
 		assert.True(t, found.LastUpdated.After(firstUpdate), "DB LastUpdated should be after the initial creation time")
 	})
 }
+
+func TestRepository_Save_RemovePosition_OrphanCleanup(t *testing.T) {
+	runWithBackends(t, func(t *testing.T, db *DB) {
+		repo := NewRepository(db)
+		ctx := context.Background()
+
+		p := domain.NewPortfolio("Orphan Cleanup Portfolio")
+
+		inst1 := domain.NewInstrument("US100", "TEST1", "Test1", domain.InstrumentTypeStock, "USD", "NYSE")
+		pos1 := domain.NewPosition(inst1, domain.NewDecimalFromInt(100), "USD")
+		_ = pos1.UpdatePrice(domain.NewDecimalFromInt(10))
+		_ = p.AddPosition(pos1)
+
+		inst2 := domain.NewInstrument("US200", "TEST2", "Test2", domain.InstrumentTypeStock, "USD", "NYSE")
+		pos2 := domain.NewPosition(inst2, domain.NewDecimalFromInt(200), "USD")
+		_ = pos2.UpdatePrice(domain.NewDecimalFromInt(20))
+		_ = p.AddPosition(pos2)
+
+		err := repo.Save(ctx, &p)
+		assert.NoError(t, err)
+
+		found1, err := repo.FindByID(ctx, p.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(found1.Positions))
+
+		// Remove pos1 to test orphan cleanup logic in Save
+		p.Positions = []domain.Position{p.Positions[1]}
+		
+		err = repo.Save(ctx, &p)
+		assert.NoError(t, err)
+
+		found2, err := repo.FindByID(ctx, p.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(found2.Positions))
+		assert.Equal(t, "US200", found2.Positions[0].Instrument.ISIN)
+	})
+}
+
+func TestRepository_Rebind(t *testing.T) {
+	// Create an Oracle repository explicitly
+	db := &DB{Dialect: &OracleDialect{}}
+	repo := NewRepository(db)
+
+	query := "DELETE FROM positions WHERE id IN ($1, $2) AND code = $10 AND extra = $111"
+	expected := "DELETE FROM positions WHERE id IN (:1, :2) AND code = :10 AND extra = :111"
+
+	result := repo.rebind(query)
+	assert.Equal(t, expected, result)
+
+	// Test Postgres bypass
+	dbPg := &DB{Dialect: &PostgresDialect{}}
+	repoPg := NewRepository(dbPg)
+	
+	resultPg := repoPg.rebind(query)
+	assert.Equal(t, query, resultPg)
+}
