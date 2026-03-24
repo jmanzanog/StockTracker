@@ -530,10 +530,7 @@ func TestRefreshPrices_UpdatePriceError(t *testing.T) {
 	})
 }
 
-// --- Bug Fix Tests ---
-
-// Bug 1: RemovePosition must persist the deletion to the repository.
-// Previously Save() only upserted positions; removed positions stayed orphaned in DB.
+// RemovePosition must persist deletion: Save() must not leave orphaned rows in DB.
 func TestRemovePosition_PersistsDeletion(t *testing.T) {
 	repo := &MockRepository{}
 	marketData := &MockMarketData{}
@@ -576,9 +573,7 @@ func TestRemovePosition_PersistsDeletion(t *testing.T) {
 	}
 }
 
-// Bug 2: AddPosition must return the merged position when a duplicate ISIN is added.
-// Previously it returned the temporary position created before the merge, not the actual
-// merged position in the portfolio.
+// AddPosition with duplicate ISIN must return the merged position, not the pre-merge temporary.
 func TestAddPosition_DuplicateISIN_ReturnsMergedPosition(t *testing.T) {
 	repo := &MockRepository{}
 	marketData := &MockMarketData{}
