@@ -54,24 +54,30 @@ func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 		if err != nil {
 			return fmt.Errorf("query existing positions for orphan cleanup: %w", err)
 		}
+		var orphans []string
 		for existingRows.Next() {
-			var existingID string
-			if err := existingRows.Scan(&existingID); err != nil {
-				_ = existingRows.Close()
-				return fmt.Errorf("scanning existing position id: %w", err)
+			var id string
+			if err := existingRows.Scan(&id); err != nil {
+				existingRows.Close()
+				return fmt.Errorf("scanning position id: %w", err)
 			}
-			if !newPositionIDs[existingID] {
-				if _, err := tx.ExecContext(ctx, r.rebind("DELETE FROM positions WHERE id = $1"), existingID); err != nil {
-					_ = existingRows.Close()
-					return fmt.Errorf("deleting orphaned position %s: %w", existingID, err)
-				}
-				slog.Debug("Deleted orphaned position", "position_id", existingID, "portfolio_id", p.ID)
+			if !newPositionIDs[id] {
+				orphans = append(orphans, id)
 			}
 		}
 		if err := existingRows.Err(); err != nil {
-			return fmt.Errorf("iterating existing positions: %w", err)
+			existingRows.Close()
+			return fmt.Errorf("iterating positions: %w", err)
 		}
-		_ = existingRows.Close()
+		if err := existingRows.Close(); err != nil {
+			return fmt.Errorf("closing rows: %w", err)
+		}
+		for _, id := range orphans {
+			if _, err := tx.ExecContext(ctx, r.rebind("DELETE FROM positions WHERE id = $1"), id); err != nil {
+				return fmt.Errorf("deleting orphaned position %s: %w", id, err)
+			}
+			slog.Debug("Deleted orphaned position", "position_id", id, "portfolio_id", p.ID)
+		}
 
 		return nil
 	})
