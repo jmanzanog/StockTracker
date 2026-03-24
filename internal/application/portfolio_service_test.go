@@ -12,10 +12,10 @@ import (
 // --- Mocks ---
 
 type MockRepository struct {
-	portfolio     *domain.Portfolio
-	saveError     error
-	findError     error
-	deleteError   error
+	portfolio      *domain.Portfolio
+	saveError      error
+	findError      error
+	deleteError    error
 	savedPortfolio *domain.Portfolio // captures what was passed to Save for verification
 }
 
