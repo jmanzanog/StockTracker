@@ -658,7 +658,7 @@ func TestRepository_Save_RemovePosition_OrphanCleanup(t *testing.T) {
 
 		// Remove pos1 to test orphan cleanup logic in Save
 		p.Positions = []domain.Position{p.Positions[1]}
-		
+
 		err = repo.Save(ctx, &p)
 		assert.NoError(t, err)
 
@@ -683,7 +683,7 @@ func TestRepository_Rebind(t *testing.T) {
 	// Test Postgres bypass
 	dbPg := &DB{Dialect: &PostgresDialect{}}
 	repoPg := NewRepository(dbPg)
-	
+
 	resultPg := repoPg.rebind(query)
 	assert.Equal(t, query, resultPg)
 }

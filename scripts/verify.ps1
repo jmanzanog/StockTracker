@@ -43,7 +43,7 @@ if ($ARCH -eq "ARM64") {
 # Detect Docker
 $DOCKER_AVAILABLE = $false
 try {
-    $dockerCheck = docker info 2>$null
+    $null = docker info 2>$null
     if ($LASTEXITCODE -eq 0) { $DOCKER_AVAILABLE = $true; Info "Docker available" }
     else { Info "Docker NOT available" }
 } catch { Info "Docker NOT available" }
@@ -178,7 +178,7 @@ try {
     if ($LASTEXITCODE -eq 0) { Pass "All tests passed" }
     else {
         if (-not $DOCKER_AVAILABLE) {
-            Skip "Tests failed — Docker not available for testcontainers"
+            Skip "Tests failed - Docker not available for testcontainers"
             Skip "CI runs with Docker and will run the full suite correctly"
             Info "This environment lacks Docker. Run in CI for full test suite."
         } else {
@@ -195,7 +195,7 @@ try {
 # ---------------------------------------------------------------------------
 Banner "Summary"
 if (-not $FAILED) {
-    Pass "All checks passed — safe to push"
+    Pass "All checks passed - safe to push"
     Write-Host ""
     Write-Host "  This script mirrors CI exactly. Fix all failures before pushing."
     if ($SKIP_RACE) {
@@ -205,7 +205,7 @@ if (-not $FAILED) {
         Write-Host "  Note: testcontainers tests skipped (Docker not available)."
     }
 } else {
-    Fail "Some checks failed. Fix before pushing — CI will fail otherwise."
+    Fail "Some checks failed. Fix before pushing - CI will fail otherwise."
 }
 
 exit [int]$FAILED
