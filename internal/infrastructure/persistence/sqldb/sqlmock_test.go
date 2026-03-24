@@ -430,3 +430,104 @@ func TestRepository_Rebind_Oracle(t *testing.T) {
 		t.Fatal("expected oracle rebinding")
 	}
 }
+
+func TestRepository_Save_OrphanQueryError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT id FROM positions WHERE portfolio_id").WithArgs("test-id").WillReturnError(fmt.Errorf("query err"))
+	mock.ExpectRollback()
+
+	repo := NewRepository(New(db, &stubDialect{name: "postgres"}))
+	portfolio := domain.NewPortfolio("test")
+	portfolio.ID = "test-id"
+
+	if err := repo.Save(context.Background(), &portfolio); err == nil {
+		t.Fatal("expected query error")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
+
+func TestRepository_Save_OrphanScanError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectBegin()
+	rows := sqlmock.NewRows([]string{"id"}).AddRow(nil)
+	mock.ExpectQuery("SELECT id FROM positions WHERE portfolio_id").WithArgs("test-id").WillReturnRows(rows)
+	mock.ExpectRollback()
+
+	repo := NewRepository(New(db, &stubDialect{name: "postgres"}))
+	portfolio := domain.NewPortfolio("test")
+	portfolio.ID = "test-id"
+
+	if err := repo.Save(context.Background(), &portfolio); err == nil {
+		t.Fatal("expected scan error")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
+
+func TestRepository_Save_OrphanRowsErr(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectBegin()
+	rows := sqlmock.NewRows([]string{"id"}).AddRow("pos-1").RowError(0, fmt.Errorf("iterating err"))
+	mock.ExpectQuery("SELECT id FROM positions WHERE portfolio_id").WithArgs("test-id").WillReturnRows(rows)
+	mock.ExpectRollback()
+
+	repo := NewRepository(New(db, &stubDialect{name: "postgres"}))
+	portfolio := domain.NewPortfolio("test")
+	portfolio.ID = "test-id"
+	inst := domain.NewInstrument("US123", "AAPL", "Apple", domain.InstrumentTypeStock, "USD", "NASDAQ")
+	pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1), "USD")
+	pos.ID = "pos-1"
+	portfolio.Positions = []domain.Position{pos}
+
+	if err := repo.Save(context.Background(), &portfolio); err == nil {
+		t.Fatal("expected iterating error")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
+
+func TestRepository_Save_OrphanDeleteError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectBegin()
+	rows := sqlmock.NewRows([]string{"id"}).AddRow("orphan-1")
+	mock.ExpectQuery("SELECT id FROM positions WHERE portfolio_id").WithArgs("test-id").WillReturnRows(rows)
+	mock.ExpectExec("DELETE FROM positions WHERE id IN").WithArgs("orphan-1").WillReturnError(fmt.Errorf("delete err"))
+	mock.ExpectRollback()
+
+	repo := NewRepository(New(db, &stubDialect{name: "postgres"}))
+	portfolio := domain.NewPortfolio("test")
+	portfolio.ID = "test-id"
+
+	if err := repo.Save(context.Background(), &portfolio); err == nil {
+		t.Fatal("expected delete error")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet: %v", err)
+	}
+}
