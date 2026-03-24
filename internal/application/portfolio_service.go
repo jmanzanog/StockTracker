@@ -83,6 +83,16 @@ func (s *PortfolioService) AddPosition(ctx context.Context, isin string, investe
 		return nil, fmt.Errorf("failed to save portfolio: %w", err)
 	}
 
+	// Return the actual position from the portfolio — either the newly added one or the
+	// merged one if a duplicate ISIN was already present. Previously this returned the
+	// temporary 'position' variable created before the merge, which had stale values.
+	for i := range s.defaultPortfolio.Positions {
+		if s.defaultPortfolio.Positions[i].Instrument.ISIN == instrument.ISIN {
+			result := s.defaultPortfolio.Positions[i]
+			return &result, nil
+		}
+	}
+	// Should not reach here if AddPosition succeeded; fall back to the temp position.
 	return &position, nil
 }
 
