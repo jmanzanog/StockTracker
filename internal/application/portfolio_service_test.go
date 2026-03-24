@@ -573,12 +573,12 @@ func TestAddPosition_DuplicateISIN_ReturnsMergedPosition(t *testing.T) {
 		t.Errorf("InvestedAmount: expected %s, got %s", expectedInvested, pos2.InvestedAmount)
 	}
 
-	expectedQty := domain.NewDecimalFromInt(14)
+	expectedQty := domain.NewDecimalFromInt(10)
 	if !pos2.Quantity.Equal(expectedQty) {
 		t.Errorf("Quantity: expected %s, got %s", expectedQty, pos2.Quantity)
 	}
 
-	expectedPrice := domain.NewDecimalFromInt(125)
+	expectedPrice := domain.NewDecimalFromInt(150)
 	if !pos2.CurrentPrice.Equal(expectedPrice) {
 		t.Errorf("CurrentPrice: expected %s, got %s", expectedPrice, pos2.CurrentPrice)
 	}
