@@ -37,13 +37,11 @@ func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 		}
 
 		for i := range p.Positions {
-			// Ensure instrument exists
 			if err := r.db.Dialect.UpsertInstrument(ctx, tx, &p.Positions[i].Instrument); err != nil {
 				slog.Error("Failed to save instrument", "isin", p.Positions[i].Instrument.ISIN, "error", err)
 				return fmt.Errorf("upsert instrument: %w", err)
 			}
 
-			// Ensure portfolio ID is set
 			p.Positions[i].PortfolioID = p.ID
 
 			if err := r.db.Dialect.UpsertPosition(ctx, tx, &p.Positions[i]); err != nil {

@@ -61,7 +61,6 @@ func (s *PortfolioService) AddPosition(ctx context.Context, isin string, investe
 		return nil, fmt.Errorf("failed to get quote: %w", err)
 	}
 
-	// Convert shopspring decimal (from marketdata) to domain decimal
 	price, err := domain.NewDecimalFromString(quote.Price.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse quote price: %w", err)
