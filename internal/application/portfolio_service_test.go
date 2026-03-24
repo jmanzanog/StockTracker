@@ -12,10 +12,11 @@ import (
 // --- Mocks ---
 
 type MockRepository struct {
-	portfolio   *domain.Portfolio
-	saveError   error
-	findError   error
-	deleteError error
+	portfolio     *domain.Portfolio
+	saveError     error
+	findError     error
+	deleteError   error
+	savedPortfolio *domain.Portfolio // captures what was passed to Save for verification
 }
 
 func (m *MockRepository) Save(_ context.Context, p *domain.Portfolio) error {
@@ -23,6 +24,9 @@ func (m *MockRepository) Save(_ context.Context, p *domain.Portfolio) error {
 		return m.saveError
 	}
 	m.portfolio = p
+	// Store a deep copy so tests can inspect what was saved
+	clone := p.Clone()
+	m.savedPortfolio = &clone
 	return nil
 }
 
@@ -524,4 +528,96 @@ func TestRefreshPrices_UpdatePriceError(t *testing.T) {
 			t.Fatal("expected error when UpdatePrice fails during refresh")
 		}
 	})
+}
+
+// --- Bug Fix Tests ---
+
+// Bug 1: RemovePosition must persist the deletion to the repository.
+// Previously Save() only upserted positions; removed positions stayed orphaned in DB.
+func TestRemovePosition_PersistsDeletion(t *testing.T) {
+	repo := &MockRepository{}
+	marketData := &MockMarketData{}
+	service, _ := NewPortfolioService(repo, marketData)
+	ctx := context.Background()
+
+	// Add two positions
+	pos1, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
+	if err != nil {
+		t.Fatalf("AddPosition failed: %v", err)
+	}
+	_, err = service.AddPosition(ctx, "US0000000002", domain.NewDecimalFromInt(2000), "USD")
+	if err != nil {
+		t.Fatalf("AddPosition failed: %v", err)
+	}
+
+	// Verify both positions are in the saved portfolio
+	if len(repo.savedPortfolio.Positions) != 2 {
+		t.Fatalf("expected 2 positions, got %d", len(repo.savedPortfolio.Positions))
+	}
+
+	// Remove one position
+	err = service.RemovePosition(ctx, pos1.ID)
+	if err != nil {
+		t.Fatalf("RemovePosition failed: %v", err)
+	}
+
+	// The saved portfolio must contain only the remaining position
+	if repo.savedPortfolio == nil {
+		t.Fatal("savedPortfolio is nil — Save was never called")
+	}
+	if len(repo.savedPortfolio.Positions) != 1 {
+		t.Fatalf("expected 1 position after removal, got %d", len(repo.savedPortfolio.Positions))
+	}
+	if repo.savedPortfolio.Positions[0].ID == pos1.ID {
+		t.Fatal("removed position should not appear in the saved portfolio")
+	}
+	if repo.savedPortfolio.Positions[0].Instrument.ISIN == "" {
+		t.Error("remaining position should still have valid ISIN")
+	}
+}
+
+// Bug 2: AddPosition must return the merged position when a duplicate ISIN is added.
+// Previously it returned the temporary position created before the merge, not the actual
+// merged position in the portfolio.
+func TestAddPosition_DuplicateISIN_ReturnsMergedPosition(t *testing.T) {
+	repo := &MockRepository{}
+	marketData := &MockMarketData{}
+	service, _ := NewPortfolioService(repo, marketData)
+	ctx := context.Background()
+
+	// Add first position: 1000 USD at price 100 -> qty 10
+	_, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(1000), "USD")
+	if err != nil {
+		t.Fatalf("AddPosition failed: %v", err)
+	}
+
+	// Add second position with SAME ISIN: 500 USD at price 125 -> qty 4
+	pos2, err := service.AddPosition(ctx, "US0000000001", domain.NewDecimalFromInt(500), "USD")
+	if err != nil {
+		t.Fatalf("AddPosition failed: %v", err)
+	}
+
+	// The returned position must reflect the merge, not the pre-merge temporary
+	// Merged invested: 1000 + 500 = 1500
+	expectedInvested := domain.NewDecimalFromInt(1500)
+	if !pos2.InvestedAmount.Equal(expectedInvested) {
+		t.Errorf("InvestedAmount: expected %s, got %s", expectedInvested, pos2.InvestedAmount)
+	}
+
+	// Merged quantity: 10 + 4 = 14
+	expectedQty := domain.NewDecimalFromInt(14)
+	if !pos2.Quantity.Equal(expectedQty) {
+		t.Errorf("Quantity: expected %s, got %s", expectedQty, pos2.Quantity)
+	}
+
+	// Current price should be the latest: 125
+	expectedPrice := domain.NewDecimalFromInt(125)
+	if !pos2.CurrentPrice.Equal(expectedPrice) {
+		t.Errorf("CurrentPrice: expected %s, got %s", expectedPrice, pos2.CurrentPrice)
+	}
+
+	// Verify the portfolio also has only 1 position (merged, not duplicate)
+	if len(repo.savedPortfolio.Positions) != 1 {
+		t.Errorf("expected 1 position in portfolio after duplicate ISIN add, got %d", len(repo.savedPortfolio.Positions))
+	}
 }

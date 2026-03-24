@@ -36,7 +36,13 @@ func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 			return fmt.Errorf("upsert portfolio: %w", err)
 		}
 
-		// 2. Upsert Instruments and Positions
+		// 2. Collect new position IDs for orphan detection
+		newPositionIDs := make(map[string]bool)
+		for _, pos := range p.Positions {
+			newPositionIDs[pos.ID] = true
+		}
+
+		// 3. Upsert Instruments and Positions
 		for i := range p.Positions {
 			// Ensure instrument exists
 			if err := r.db.Dialect.UpsertInstrument(ctx, tx, &p.Positions[i].Instrument); err != nil {
@@ -53,6 +59,33 @@ func (r *Repository) Save(ctx context.Context, p *domain.Portfolio) error {
 				return fmt.Errorf("upsert position: %w", err)
 			}
 		}
+
+		// 4. Delete orphaned positions: exist in DB but no longer in the in-memory portfolio.
+		//    This is the fix for the critical bug where RemovePosition did not persist.
+		existingRows, err := tx.QueryContext(ctx, r.rebind("SELECT id FROM positions WHERE portfolio_id = $1"), p.ID)
+		if err != nil {
+			return fmt.Errorf("query existing positions for orphan cleanup: %w", err)
+		}
+		for existingRows.Next() {
+			var existingID string
+			if err := existingRows.Scan(&existingID); err != nil {
+				existingRows.Close()
+				return fmt.Errorf("scanning existing position id: %w", err)
+			}
+			if !newPositionIDs[existingID] {
+				// This position was removed from the in-memory portfolio — delete it from DB.
+				if _, err := tx.ExecContext(ctx, r.rebind("DELETE FROM positions WHERE id = $1"), existingID); err != nil {
+					existingRows.Close()
+					return fmt.Errorf("deleting orphaned position %s: %w", existingID, err)
+				}
+				slog.Debug("Deleted orphaned position", "position_id", existingID, "portfolio_id", p.ID)
+			}
+		}
+		if err := existingRows.Err(); err != nil {
+			return fmt.Errorf("iterating existing positions: %w", err)
+		}
+		existingRows.Close()
+
 		return nil
 	})
 }
