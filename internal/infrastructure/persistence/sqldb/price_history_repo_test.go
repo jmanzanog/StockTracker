@@ -407,3 +407,38 @@ func TestPriceHistoryRepository_CleanupOlderThan(t *testing.T) {
 		}
 	})
 }
+
+func TestPriceHistoryRepository_Rebind_Postgres(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	wrapper := New(db, &stubDialect{name: "postgres"})
+	repo := NewPriceHistoryRepository(wrapper)
+
+	query := "SELECT * FROM t WHERE a = $1 AND b = $2"
+	result := repo.rebind(query)
+	if result != query {
+		t.Errorf("expected postgres to bypass rebind, got %s", result)
+	}
+}
+
+func TestPriceHistoryRepository_Rebind_Oracle(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	wrapper := New(db, &stubDialect{name: "oracle"})
+	repo := NewPriceHistoryRepository(wrapper)
+
+	query := "SELECT * FROM t WHERE a = $1 AND b = $2"
+	result := repo.rebind(query)
+	expected := "SELECT * FROM t WHERE a = :1 AND b = :2"
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
+	}
+}
