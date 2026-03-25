@@ -13,12 +13,17 @@ type DashboardSnapshot struct {
 	ByType        []TypeAllocation     `json:"by_type"`
 	BySector      []SectorAllocation   `json:"by_sector"`
 	Positions     []PositionDashboard  `json:"positions"`
+	allocated     bool                 `json:"-"`
 }
 
 func (d *DashboardSnapshot) CalculateAllocations() {
+	if d.allocated {
+		return
+	}
 	d.ByCurrency = d.calculateByCurrency()
 	d.ByType = d.calculateByType()
 	d.BySector = d.calculateBySector()
+	d.allocated = true
 }
 
 func (d *DashboardSnapshot) calculateByCurrency() []CurrencyAllocation {

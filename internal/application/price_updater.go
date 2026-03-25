@@ -20,6 +20,7 @@ type PriceUpdater struct {
 	priceHistoryRepo domain.PriceHistoryRepository
 	interval         time.Duration
 	stopChan         chan struct{}
+	clock            domain.Clock
 }
 
 func NewPriceUpdater(service PriceRefresher, priceHistoryRepo domain.PriceHistoryRepository, interval time.Duration) *PriceUpdater {
@@ -28,6 +29,7 @@ func NewPriceUpdater(service PriceRefresher, priceHistoryRepo domain.PriceHistor
 		priceHistoryRepo: priceHistoryRepo,
 		interval:         interval,
 		stopChan:         make(chan struct{}),
+		clock:            domain.RealClock{},
 	}
 }
 
@@ -73,7 +75,7 @@ func (u *PriceUpdater) captureHistory(ctx context.Context) error {
 		return nil
 	}
 
-	now := time.Now().UTC().Truncate(time.Minute)
+	now := u.clock.Now().UTC().Truncate(time.Minute)
 	history := make([]domain.PriceHistory, 0, len(portfolio.Positions))
 
 	for _, pos := range portfolio.Positions {
@@ -95,7 +97,7 @@ func (u *PriceUpdater) Stop() {
 }
 
 func (u *PriceUpdater) cleanupOldHistory(ctx context.Context) {
-	cutoff := time.Now().AddDate(0, 0, -90)
+	cutoff := u.clock.Now().AddDate(0, 0, -90)
 	deleted, err := u.priceHistoryRepo.CleanupOlderThan(ctx, cutoff)
 	if err != nil {
 		slog.Warn("Failed to cleanup old price history", "error", err)

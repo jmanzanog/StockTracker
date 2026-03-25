@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 )
@@ -12,12 +11,14 @@ import (
 type DashboardService struct {
 	portfolioRepo    domain.PortfolioRepository
 	priceHistoryRepo domain.PriceHistoryRepository
+	clock            domain.Clock
 }
 
 func NewDashboardService(portfolioRepo domain.PortfolioRepository, priceHistoryRepo domain.PriceHistoryRepository) *DashboardService {
 	return &DashboardService{
 		portfolioRepo:    portfolioRepo,
 		priceHistoryRepo: priceHistoryRepo,
+		clock:            domain.RealClock{},
 	}
 }
 
@@ -166,7 +167,7 @@ func (s *DashboardService) GetDashboard(ctx context.Context, req GetDashboardReq
 
 	snapshot := &domain.DashboardSnapshot{
 		PortfolioID:   portfolio.ID,
-		GeneratedAt:   time.Now(),
+		GeneratedAt:   s.clock.Now(),
 		TotalValue:    totalValue,
 		TotalInvested: totalInvested,
 		TotalPnL:      totalPnL,
