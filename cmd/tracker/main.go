@@ -39,7 +39,7 @@ func setupLogger() *slog.Logger {
 }
 
 // initializeDatabase sets up the database connection and runs migrations
-func initializeDatabase(cfg *config.Config) (domain.PortfolioRepository, error) {
+func initializeDatabase(cfg *config.Config) (domain.PortfolioRepository, domain.PriceHistoryRepository, error) {
 	var db *sql.DB
 	var dialect sqldb.Dialect
 	var err error
@@ -52,16 +52,16 @@ func initializeDatabase(cfg *config.Config) (domain.PortfolioRepository, error) 
 		db, err = sql.Open("oracle", cfg.DBDSN)
 		dialect = &sqldb.OracleDialect{}
 	default:
-		return nil, fmt.Errorf("unsupported database driver: %s", cfg.DBDriver)
+		return nil, nil, fmt.Errorf("unsupported database driver: %s", cfg.DBDriver)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect database: %w", err)
+		return nil, nil, fmt.Errorf("failed to connect database: %w", err)
 	}
 
 	if err := db.Ping(); err != nil {
 		_ = db.Close() // Close connection if ping fails
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		return nil, nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	wrapper := sqldb.New(db, dialect)
@@ -72,16 +72,16 @@ func initializeDatabase(cfg *config.Config) (domain.PortfolioRepository, error) 
 
 	if err := wrapper.Dialect.Migrate(ctx, db); err != nil {
 		_ = db.Close() // Close connection if migration fails
-		return nil, fmt.Errorf("failed to migrate database: %w", err)
+		return nil, nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	return sqldb.NewRepository(wrapper), nil
+	return sqldb.NewRepository(wrapper), sqldb.NewPriceHistoryRepository(wrapper), nil
 }
 
 // buildServer creates and configures the HTTP server with all routes and handlers
-func buildServer(cfg *config.Config, portfolioService *application.PortfolioService) *http.Server {
+func buildServer(cfg *config.Config, portfolioService *application.PortfolioService, dashboardService *application.DashboardService) *http.Server {
 	router := gin.Default()
-	handler := httpHandler.NewHandler(portfolioService)
+	handler := httpHandler.NewHandlerWithDashboard(portfolioService, dashboardService)
 	httpHandler.SetupRoutes(router, handler)
 
 	server := &http.Server{
@@ -143,7 +143,7 @@ func run() error {
 	marketDataClient := createMarketDataClient(cfg)
 	slog.Info("Using market data provider", "provider", cfg.MarketDataProvider)
 
-	repo, err := initializeDatabase(cfg)
+	repo, priceHistoryRepo, err := initializeDatabase(cfg)
 	if err != nil {
 		return fmt.Errorf("database initialization failed: %w", err)
 	}
@@ -153,13 +153,15 @@ func run() error {
 		return fmt.Errorf("failed to create portfolio service: %w", err)
 	}
 
+	dashboardService := application.NewDashboardService(repo, priceHistoryRepo)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	priceUpdater := application.NewPriceUpdater(portfolioService, cfg.PriceRefreshInterval)
+	priceUpdater := application.NewPriceUpdater(portfolioService, priceHistoryRepo, cfg.PriceRefreshInterval)
 	go priceUpdater.Start(ctx)
 
-	server := buildServer(cfg, portfolioService)
+	server := buildServer(cfg, portfolioService, dashboardService)
 
 	// Create app wrapper
 	app := &App{

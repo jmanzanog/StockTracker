@@ -34,7 +34,7 @@ func TestNewPortfolio(t *testing.T) {
 
 func TestAddPosition_New(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD")
 	err := pos.UpdatePrice(NewDecimalFromInt(100)) // Quantity = 10
 	if err != nil {
@@ -56,7 +56,7 @@ func TestAddPosition_New(t *testing.T) {
 
 func TestAddPosition_Merge(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 
 	// 1. Add first position
 	pos1 := NewPosition(inst, NewDecimalFromInt(1000), "USD") // 1000 USD
@@ -110,7 +110,7 @@ func TestAddPosition_Merge(t *testing.T) {
 func TestAddPosition_Invalid(t *testing.T) {
 	p := NewPortfolio("Test P")
 	// Invalid position (empty ISIN)
-	inst := NewInstrument("", "", "", InstrumentTypeStock, "USD", "")
+	inst := NewInstrument("", "", "", InstrumentTypeStock, "USD", "", "")
 	pos := NewPosition(inst, Zero, "USD")
 
 	err := p.AddPosition(pos)
@@ -123,11 +123,11 @@ func TestAddPosition_MultipleDistinct(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
 
 	// Add two different instruments
-	inst1 := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst1 := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos1 := NewPosition(inst1, NewDecimalFromInt(1000), "USD")
 	_ = pos1.UpdatePrice(NewDecimalFromInt(150))
 
-	inst2 := NewInstrument("US002", "GOOGL", "Google", InstrumentTypeStock, "USD", "NASDAQ")
+	inst2 := NewInstrument("US002", "GOOGL", "Google", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos2 := NewPosition(inst2, NewDecimalFromInt(2000), "USD")
 	_ = pos2.UpdatePrice(NewDecimalFromInt(2800))
 
@@ -143,7 +143,7 @@ func TestAddPosition_MultipleDistinct(t *testing.T) {
 
 func TestRemovePosition_Success(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD")
 	_ = pos.UpdatePrice(NewDecimalFromInt(100))
 	_ = p.AddPosition(pos)
@@ -172,11 +172,11 @@ func TestRemovePosition_NotFound(t *testing.T) {
 func TestRemovePosition_MultiplePositions(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
 
-	inst1 := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst1 := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos1 := NewPosition(inst1, NewDecimalFromInt(1000), "USD")
 	_ = pos1.UpdatePrice(NewDecimalFromInt(150))
 
-	inst2 := NewInstrument("US002", "GOOGL", "Google", InstrumentTypeStock, "USD", "NASDAQ")
+	inst2 := NewInstrument("US002", "GOOGL", "Google", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos2 := NewPosition(inst2, NewDecimalFromInt(2000), "USD")
 	_ = pos2.UpdatePrice(NewDecimalFromInt(2800))
 
@@ -203,7 +203,7 @@ func TestRemovePosition_MultiplePositions(t *testing.T) {
 
 func TestGetPosition_Success(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD")
 	_ = p.AddPosition(pos)
 
@@ -232,7 +232,7 @@ func TestGetPosition_NotFound(t *testing.T) {
 
 func TestUpdatePositionPrice_Success(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD")
 	_ = pos.UpdatePrice(NewDecimalFromInt(100))
 	_ = p.AddPosition(pos)
@@ -279,11 +279,11 @@ func TestTotalValue_EmptyPortfolio(t *testing.T) {
 func TestTotalValue_MultiplePositions(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
 
-	inst1 := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst1 := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos1 := NewPosition(inst1, NewDecimalFromInt(1000), "USD") // Invested 1000
 	_ = pos1.UpdatePrice(NewDecimalFromInt(100))               // Price 100, Qty 10, Value = 1000
 
-	inst2 := NewInstrument("US002", "GOOGL", "Google", InstrumentTypeStock, "USD", "NASDAQ")
+	inst2 := NewInstrument("US002", "GOOGL", "Google", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos2 := NewPosition(inst2, NewDecimalFromInt(2000), "USD") // Invested 2000
 	_ = pos2.UpdatePrice(NewDecimalFromInt(2000))              // Price 2000, Qty 1, Value = 2000
 
@@ -321,11 +321,11 @@ func TestTotalInvested_EmptyPortfolio(t *testing.T) {
 func TestTotalInvested_MultiplePositions(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
 
-	inst1 := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst1 := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos1 := NewPosition(inst1, NewDecimalFromInt(1000), "USD")
 	_ = pos1.UpdatePrice(NewDecimalFromInt(100))
 
-	inst2 := NewInstrument("US002", "GOOGL", "Google", InstrumentTypeStock, "USD", "NASDAQ")
+	inst2 := NewInstrument("US002", "GOOGL", "Google", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos2 := NewPosition(inst2, NewDecimalFromInt(2500), "USD")
 	_ = pos2.UpdatePrice(NewDecimalFromInt(2000))
 
@@ -364,7 +364,7 @@ func TestTotalProfitLoss_Profit(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
 
 	// Add a position with profit: Invested 1000, Current value 1500
-	inst := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD") // Invested 1000
 	_ = pos.UpdatePrice(NewDecimalFromInt(150))              // Price 150, Qty ~6.67, Value ~1000
 	_ = p.AddPosition(pos)
@@ -388,7 +388,7 @@ func TestTotalProfitLoss_Profit(t *testing.T) {
 func TestTotalProfitLoss_Loss(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
 
-	inst := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD") // Invested 1000
 	_ = pos.UpdatePrice(NewDecimalFromInt(200))              // Price 200, Qty 5, Value 1000
 	_ = p.AddPosition(pos)
@@ -428,7 +428,7 @@ func TestTotalProfitLossPercent_EmptyPortfolio(t *testing.T) {
 func TestTotalProfitLossPercent_Profit(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
 
-	inst := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD") // Invested 1000
 	_ = pos.UpdatePrice(NewDecimalFromInt(100))              // Price 100, Qty 10, Value 1000
 	_ = p.AddPosition(pos)
@@ -452,7 +452,7 @@ func TestTotalProfitLossPercent_Profit(t *testing.T) {
 func TestTotalProfitLossPercent_Loss(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
 
-	inst := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US001", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD") // Invested 1000
 	_ = pos.UpdatePrice(NewDecimalFromInt(100))              // Price 100, Qty 10, Value 1000
 	_ = p.AddPosition(pos)
@@ -477,7 +477,7 @@ func TestTotalProfitLossPercent_Loss(t *testing.T) {
 
 func TestPortfolio_Clone(t *testing.T) {
 	p := NewPortfolio("Original")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1000), "USD")
 	_ = pos.UpdatePrice(NewDecimalFromInt(100))
 	_ = p.AddPosition(pos)
@@ -505,7 +505,7 @@ func TestPortfolio_Clone(t *testing.T) {
 
 func TestAddPosition_MergeInvestedAmountError(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 
 	pos1 := NewPosition(inst, NewDecimalFromInt(1), "USD")
 	_ = pos1.UpdatePrice(NewDecimalFromInt(1))
@@ -527,7 +527,7 @@ func TestAddPosition_MergeInvestedAmountError(t *testing.T) {
 
 func TestAddPosition_MergeQuantityError(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 
 	pos1 := NewPosition(inst, NewDecimalFromInt(1), "USD")
 	_ = pos1.UpdatePrice(NewDecimalFromInt(1))
@@ -549,7 +549,7 @@ func TestAddPosition_MergeQuantityError(t *testing.T) {
 
 func TestPortfolio_TotalValue_Error(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
 	pos.Quantity, _ = NewDecimalFromString("1.1")
 	pos.CurrentPrice, _ = NewDecimalFromString("1.1")
@@ -567,7 +567,7 @@ func TestPortfolio_TotalValue_Error(t *testing.T) {
 
 func TestPortfolio_TotalInvested_Error(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
 	pos.InvestedAmount, _ = NewDecimalFromString("1.03")
 	_ = p.AddPosition(pos)
@@ -584,7 +584,7 @@ func TestPortfolio_TotalInvested_Error(t *testing.T) {
 
 func TestPortfolio_TotalProfitLoss_TotalValueError(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
 	pos.Quantity, _ = NewDecimalFromString("1.1")
 	pos.CurrentPrice, _ = NewDecimalFromString("1.1")
@@ -602,7 +602,7 @@ func TestPortfolio_TotalProfitLoss_TotalValueError(t *testing.T) {
 
 func TestPortfolio_TotalProfitLoss_TotalInvestedError(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
 	pos.InvestedAmount, _ = NewDecimalFromString("1.03")
 	pos.CurrentPrice = Zero
@@ -620,7 +620,7 @@ func TestPortfolio_TotalProfitLoss_TotalInvestedError(t *testing.T) {
 
 func TestPortfolio_TotalProfitLoss_SubError(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
 	pos.InvestedAmount, _ = NewDecimalFromString("0.03")
 	pos.Quantity = NewDecimalFromInt(1)
@@ -639,7 +639,7 @@ func TestPortfolio_TotalProfitLoss_SubError(t *testing.T) {
 
 func TestPortfolio_TotalProfitLossPercent_TotalInvestedError(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
 	pos.InvestedAmount, _ = NewDecimalFromString("1.03")
 	pos.CurrentPrice = Zero
@@ -657,7 +657,7 @@ func TestPortfolio_TotalProfitLossPercent_TotalInvestedError(t *testing.T) {
 
 func TestPortfolio_TotalProfitLossPercent_ProfitLossError(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
 	pos.InvestedAmount, _ = NewDecimalFromString("0.03")
 	pos.Quantity = NewDecimalFromInt(1)
@@ -676,7 +676,7 @@ func TestPortfolio_TotalProfitLossPercent_ProfitLossError(t *testing.T) {
 
 func TestPortfolio_TotalProfitLossPercent_DivError(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(3), "USD")
 	pos.Quantity = NewDecimalFromInt(4)
 	pos.CurrentPrice = NewDecimalFromInt(1)
@@ -694,7 +694,7 @@ func TestPortfolio_TotalProfitLossPercent_DivError(t *testing.T) {
 
 func TestPortfolio_TotalProfitLossPercent_MulOverflow(t *testing.T) {
 	p := NewPortfolio("Test Portfolio")
-	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ")
+	inst := NewInstrument("US123", "AAPL", "Apple", InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 	pos := NewPosition(inst, NewDecimalFromInt(1), "USD")
 	pos.Quantity = NewDecimalFromInt(2)
 	pos.CurrentPrice = NewDecimalFromInt(1)

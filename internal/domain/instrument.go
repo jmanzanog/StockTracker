@@ -14,9 +14,10 @@ type Instrument struct {
 	Type     InstrumentType `json:"type"`
 	Currency string         `json:"currency"`
 	Exchange string         `json:"exchange"`
+	Sector   string         `json:"sector"`
 }
 
-func NewInstrument(isin, symbol, name string, instrumentType InstrumentType, currency, exchange string) Instrument {
+func NewInstrument(isin, symbol, name string, instrumentType InstrumentType, currency, exchange, sector string) Instrument {
 	return Instrument{
 		ISIN:     isin,
 		Symbol:   symbol,
@@ -24,6 +25,7 @@ func NewInstrument(isin, symbol, name string, instrumentType InstrumentType, cur
 		Type:     instrumentType,
 		Currency: currency,
 		Exchange: exchange,
+		Sector:   sector,
 	}
 }
 

@@ -86,6 +86,7 @@ func (m *MockMarketData) SearchByISIN(_ context.Context, isin string) (*domain.I
 		domain.InstrumentTypeStock,
 		"USD",
 		"NASDAQ",
+		"Technology",
 	)
 	return &inst, nil
 }
@@ -113,10 +114,6 @@ func TestNewPortfolioService_Success(t *testing.T) {
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if service == nil {
-		t.Fatal("expected non-nil service")
 	}
 
 	if service.defaultPortfolio == nil {
@@ -246,7 +243,7 @@ func TestAddPosition_RepositorySaveError(t *testing.T) {
 
 func TestAddPosition_InvalidInstrument(t *testing.T) {
 	repo := &MockRepository{}
-	invalidInst := domain.NewInstrument("", "", "", domain.InstrumentTypeStock, "USD", "")
+	invalidInst := domain.NewInstrument("", "", "", domain.InstrumentTypeStock, "USD", "", "")
 	marketData := &MockMarketData{
 		instrument: &invalidInst,
 	}
@@ -403,10 +400,6 @@ func TestGetPortfolioSummary_Success(t *testing.T) {
 		t.Fatalf("GetPortfolioSummary failed: %v", err)
 	}
 
-	if portfolio == nil {
-		t.Fatal("expected non-nil portfolio")
-	}
-
 	if portfolio.ID == "" {
 		t.Error("expected non-empty portfolio ID")
 	}
@@ -502,7 +495,7 @@ func TestRefreshPrices_UpdatePriceError(t *testing.T) {
 		}
 		service, _ := NewPortfolioService(repo, marketData)
 
-		inst := domain.NewInstrument("US0000000001", "TESTSYM", "Test", domain.InstrumentTypeStock, "USD", "NASDAQ")
+		inst := domain.NewInstrument("US0000000001", "TESTSYM", "Test", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
 		pos := domain.NewPosition(inst, domain.NewDecimalFromInt(1), "USD")
 		service.defaultPortfolio.Positions = []domain.Position{pos}
 

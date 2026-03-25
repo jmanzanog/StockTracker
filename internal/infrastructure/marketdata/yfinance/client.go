@@ -70,6 +70,7 @@ type searchResponse struct {
 	Type     string `json:"type"`
 	Currency string `json:"currency"`
 	Exchange string `json:"exchange"`
+	Sector   string `json:"sector"`
 }
 
 // quoteResponse represents the response from the quote endpoint.
@@ -132,6 +133,7 @@ func (c *Client) SearchByISIN(ctx context.Context, isin string) (*domain.Instrum
 		instrumentType,
 		searchResp.Currency,
 		searchResp.Exchange,
+		searchResp.Sector,
 	)
 
 	return &instrument, nil
@@ -322,6 +324,7 @@ func (c *Client) SearchByISINBatch(ctx context.Context, isins []string) []market
 			instrumentType,
 			sr.Currency,
 			sr.Exchange,
+			sr.Sector,
 		)
 		results = append(results, marketdata.SearchResult{
 			ISIN:       sr.ISIN,

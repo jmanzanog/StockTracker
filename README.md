@@ -6,9 +6,10 @@ A Go-based application for tracking and analyzing financial instruments (ETFs an
 
 - 🔍 **ISIN Lookup**: Search for financial instruments by ISIN code
 - 💰 **Portfolio Management**: Add, remove, and track multiple positions
-- � **Batch Operations**: Add multiple positions in a single request with partial failure handling
-- �📊 **Real-time Updates**: Automatic price refresh at configurable intervals
+- 📦 **Batch Operations**: Add multiple positions in a single request with partial failure handling
+- 📊 **Real-time Updates**: Automatic price refresh at configurable intervals
 - 📈 **P/L Tracking**: Calculate profit/loss for individual positions and entire portfolio
+- 📉 **Visual Dashboard**: Portfolio overview with sparkline charts and allocation breakdowns
 - 🌐 **REST API**: HTTP endpoints for easy integration
 - 🏗️ **Clean Architecture**: Domain-driven design with clear separation of concerns
 - 🐳 **Docker Ready**: Full stack containerization with PostgreSQL
@@ -59,6 +60,12 @@ stock-tracker/
   - `Quantity`: Summed with existing quantity.
   - `Current Price`: Updated to the latest market price.
   - **No Duplicates**: A portfolio cannot have two separate entries for the same ISIN.
+
+### Price History & Sparklines
+- **Automatic Capture**: Price data is captured every 60 seconds into the `price_history` table
+- **Sparkline Data**: Historical prices are used to generate sparkline charts for the dashboard endpoint
+- **Data Retention**: Old price history is automatically cleaned up after 90 days
+- **Sector Information**: Instruments include a sector field (may be empty/"N/A" if not provided by market data API)
 
 ## Installation
 
@@ -181,6 +188,68 @@ GET /api/v1/positions
 ```http
 GET /api/v1/portfolio
 ```
+
+### Visual Dashboard (Beta)
+Returns portfolio data formatted for visualization with sparkline charts and allocation breakdowns.
+
+```http
+GET /api/v1/dashboard?sparklines=7,30,90
+```
+
+**Query Parameters:**
+- `sparklines`: Comma-separated list of day ranges for sparkline data (default: `7,30,90`, max: 365 days per range, max 5 ranges)
+
+**Response:**
+```json
+{
+  "portfolio_id": "default",
+  "generated_at": "2024-01-15T10:30:00Z",
+  "total_value": "45000.00",
+  "total_invested": "30000.00",
+  "total_pnl": "15000.00",
+  "pnl_percent": "50.00",
+  "by_currency": [
+    {"currency": "USD", "total_value": "30000.00", "percent": "66.67"},
+    {"currency": "EUR", "total_value": "15000.00", "percent": "33.33"}
+  ],
+  "by_type": [
+    {"type": "stock", "total_value": "25000.00", "percent": "55.56"},
+    {"type": "etf", "total_value": "20000.00", "percent": "44.44"}
+  ],
+  "by_sector": [
+    {"sector": "Technology", "total_value": "20000.00", "percent": "44.44"},
+    {"sector": "Financial", "total_value": "15000.00", "percent": "33.33"},
+    {"sector": "N/A", "total_value": "10000.00", "percent": "22.22"}
+  ],
+  "positions": [
+    {
+      "id": "pos-1",
+      "isin": "US0378331005",
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "type": "stock",
+      "sector": "Technology",
+      "quantity": "100.00",
+      "current_price": "150.00",
+      "current_value": "15000.00",
+      "invested_amount": "10000.00",
+      "pnl": "5000.00",
+      "pnl_percent": "50.00",
+      "currency": "USD",
+      "sparklines": {
+        "7d": [{"date": "2024-01-15T10:00:00Z", "price": "148.50"}, ...],
+        "30d": [...],
+        "90d": [...]
+      }
+    }
+  ]
+}
+```
+
+**Notes:**
+- Sparklines show price history captured every 60 seconds
+- Price history is retained for 90 days and automatically cleaned up
+- Sector field may be "N/A" if the instrument provider doesn't supply sector information
 
 ## Configuration
 
