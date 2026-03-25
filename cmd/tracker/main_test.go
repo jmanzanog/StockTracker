@@ -7,15 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/config"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/finnhub"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/twelvedata"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/yfinance"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -23,7 +20,6 @@ import (
 )
 
 func TestSetupLogger(t *testing.T) {
-	// Capture the original logger to restore it later
 	originalLogger := slog.Default()
 	defer slog.SetDefault(originalLogger)
 
@@ -33,12 +29,10 @@ func TestSetupLogger(t *testing.T) {
 		t.Fatal("setupLogger returned nil logger")
 	}
 
-	// Verify the logger is set as default
 	if slog.Default() != logger {
 		t.Error("setupLogger did not set the logger as default")
 	}
 
-	// Verify the logger can be used (basic smoke test)
 	logger.Info("test message", "key", "value")
 }
 
@@ -49,7 +43,6 @@ func TestInitializeDatabase_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Start PostgreSQL container
 	pgContainer, err := postgres.Run(ctx,
 		"postgres:18-alpine",
 		postgres.WithDatabase("testdb"),
@@ -69,7 +62,6 @@ func TestInitializeDatabase_Success(t *testing.T) {
 		}
 	}()
 
-	// Get connection string
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		t.Fatalf("failed to get connection string: %v", err)
@@ -88,17 +80,9 @@ func TestInitializeDatabase_Success(t *testing.T) {
 	if repo == nil {
 		t.Fatal("initializeDatabase returned nil repository")
 	}
-	_ = priceHistoryRepo // may be nil in tests
+	_ = priceHistoryRepo
 
-	// Verify the repository is of the correct type
-	// We can't check for specific struct type easily if headers are private or using interface,
-	// but we can check if it implements the interface.
-	// Since initDB returns the interface, this check is implicit.
-	// We can check if it works.
-
-	// Verify we can use the repository (basic query)
 	_, err = repo.FindByID(ctx, "test-id")
-	// Expect an error (not found), but no panic
 	if err == nil {
 		t.Error("expected error when finding non-existent portfolio, got nil")
 	}
@@ -130,17 +114,12 @@ func TestInitializeDatabase_UnsupportedDriver(t *testing.T) {
 func TestInitializeDatabase_InvalidDSN(t *testing.T) {
 	cfg := &config.Config{
 		DBDriver: "postgres",
-		DBDSN:    "postgres://invalid:5432/db", // Valid format but unreachable
+		DBDSN:    "postgres://invalid:5432/db",
 	}
-
-	// The current implementation of initializeDatabase pings the DB.
-	// So it should fail if DB is unreachable.
 
 	repo, priceHistoryRepo, err := initializeDatabase(cfg)
 
 	if err == nil {
-		// Wait, pgx might not fail on Open, but fails on Ping.
-		// My implementation does Ping.
 		t.Fatal("expected error for invalid DSN, got nil")
 	}
 
@@ -151,29 +130,23 @@ func TestInitializeDatabase_InvalidDSN(t *testing.T) {
 }
 
 func TestBuildServer(t *testing.T) {
-	// Create a mock repository
 	mockRepo := &mockPortfolioRepository{}
 	mockPriceHistoryRepo := &mockPriceHistoryRepository{}
 
-	// Create a mock market data client
-	mockMarketData := twelvedata.NewClient("test-key")
+	mockMarketData := yfinance.NewClientWithBaseURL("http://localhost:8000")
 
-	// Create portfolio service
 	portfolioService, err := application.NewPortfolioService(mockRepo, mockMarketData)
 	if err != nil {
 		t.Fatalf("failed to create portfolio service: %v", err)
 	}
 
-	// Create dashboard service
 	dashboardService := application.NewDashboardService(mockRepo, mockPriceHistoryRepo)
 
-	// Create config
 	cfg := &config.Config{
 		ServerHost: "localhost",
 		ServerPort: "8080",
 	}
 
-	// Build server
 	server := buildServer(cfg, portfolioService, dashboardService)
 
 	expectedAddr := "localhost:8080"
@@ -186,57 +159,14 @@ func TestBuildServer(t *testing.T) {
 	}
 }
 
-func TestCreateMarketDataClient_Providers(t *testing.T) {
-	tests := []struct {
-		name     string
-		provider string
-		apiKey   string
-		url      string
-		assertFn func(t *testing.T, client interface{})
-	}{
-		{
-			name:     "twelvedata",
-			provider: config.MarketDataProviderTwelveData,
-			apiKey:   "test-key",
-			assertFn: func(t *testing.T, client interface{}) {
-				if _, ok := client.(*twelvedata.Client); !ok {
-					t.Fatal("expected TwelveData client")
-				}
-			},
-		},
-		{
-			name:     "finnhub",
-			provider: config.MarketDataProviderFinnhub,
-			apiKey:   "test-key",
-			assertFn: func(t *testing.T, client interface{}) {
-				if _, ok := client.(*finnhub.Client); !ok {
-					t.Fatal("expected Finnhub client")
-				}
-			},
-		},
-		{
-			name:     "yfinance",
-			provider: config.MarketDataProviderYFinance,
-			url:      "http://localhost:8000",
-			assertFn: func(t *testing.T, client interface{}) {
-				if _, ok := client.(*yfinance.Client); !ok {
-					t.Fatal("expected YFinance client")
-				}
-			},
-		},
+func TestCreateMarketDataClient(t *testing.T) {
+	cfg := &config.Config{
+		YFinanceBaseURL: "http://localhost:8000",
 	}
+	client := createMarketDataClient(cfg)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{
-				MarketDataProvider: tt.provider,
-				TwelveDataAPIKey:   tt.apiKey,
-				FinnhubAPIKey:      tt.apiKey,
-				YFinanceBaseURL:    tt.url,
-			}
-			client := createMarketDataClient(cfg)
-			tt.assertFn(t, client)
-		})
+	if _, ok := client.(*yfinance.Client); !ok {
+		t.Fatal("expected YFinance client")
 	}
 }
 
@@ -251,8 +181,6 @@ func TestRun_ConfigLoadError(t *testing.T) {
 func TestRun_InitializeDatabaseError(t *testing.T) {
 	t.Setenv("DB_DSN", "postgres://invalid")
 	t.Setenv("DB_DRIVER", "unsupported")
-	t.Setenv("MARKET_DATA_PROVIDER", config.MarketDataProviderTwelveData)
-	t.Setenv("TWELVE_DATA_API_KEY", "test-key")
 
 	if err := run(); err == nil {
 		t.Fatal("expected database initialization error")
@@ -282,19 +210,16 @@ func TestMain_ExitOnError(t *testing.T) {
 	}
 }
 
-// --- App Tests ---
-
 func TestApp_Shutdown(t *testing.T) {
-	// Create mock components
 	mockRepo := &mockPortfolioRepository{}
 	mockPriceHistoryRepo := &mockPriceHistoryRepository{}
-	mockMarketData := twelvedata.NewClient("test-key")
+	mockMarketData := yfinance.NewClientWithBaseURL("http://localhost:8000")
 	portfolioService, _ := application.NewPortfolioService(mockRepo, mockMarketData)
 	dashboardService := application.NewDashboardService(mockRepo, mockPriceHistoryRepo)
 
 	cfg := &config.Config{
 		ServerHost:           "localhost",
-		ServerPort:           "0", // Use port 0 for automatic assignment
+		ServerPort:           "0",
 		PriceRefreshInterval: 1 * time.Hour,
 	}
 
@@ -310,7 +235,6 @@ func TestApp_Shutdown(t *testing.T) {
 		CancelContext: cancel,
 	}
 
-	// Test shutdown
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer shutdownCancel()
 
@@ -319,8 +243,6 @@ func TestApp_Shutdown(t *testing.T) {
 		t.Errorf("Shutdown failed: %v", err)
 	}
 }
-
-// --- Mock Repository ---
 
 type mockPortfolioRepository struct{}
 
@@ -344,8 +266,6 @@ func (m *mockPortfolioRepository) AutoMigrate() error {
 	return nil
 }
 
-// --- Mock Price History Repository ---
-
 type mockPriceHistoryRepository struct{}
 
 func (m *mockPriceHistoryRepository) SaveBatch(_ context.Context, _ []domain.PriceHistory) error {
@@ -368,10 +288,7 @@ func (m *mockPriceHistoryRepository) CleanupOlderThan(_ context.Context, _ time.
 	return 0, nil
 }
 
-// --- Benchmark ---
-
 func BenchmarkSetupLogger(b *testing.B) {
-	// Suppress output during benchmark
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	b.ResetTimer()
@@ -380,25 +297,13 @@ func BenchmarkSetupLogger(b *testing.B) {
 	}
 }
 
-// --- Integration Test ---
-
 func TestFullInitializationFlow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	// Set environment for testing
-	_ = os.Setenv("TWELVE_DATA_API_KEY", "test-key")
-	defer func() {
-		err := os.Unsetenv("TWELVE_DATA_API_KEY")
-		if err != nil {
-			t.Logf("failed to unset env var: %v", err)
-		}
-	}()
-
 	ctx := context.Background()
 
-	// Start PostgreSQL container
 	pgContainer, err := postgres.Run(ctx,
 		"postgres:18-alpine",
 		postgres.WithDatabase("testdb"),
@@ -423,38 +328,31 @@ func TestFullInitializationFlow(t *testing.T) {
 		t.Fatalf("failed to get connection string: %v", err)
 	}
 
-	// Test complete initialization flow
 	cfg := &config.Config{
 		DBDriver:             "postgres",
 		DBDSN:                connStr,
 		ServerHost:           "localhost",
 		ServerPort:           "0",
-		TwelveDataAPIKey:     "test-key",
+		YFinanceBaseURL:      "http://localhost:8000",
 		PriceRefreshInterval: 1 * time.Hour,
 	}
 
-	// Initialize database
 	repo, priceHistoryRepo, err := initializeDatabase(cfg)
 	if err != nil {
 		t.Fatalf("database initialization failed: %v", err)
 	}
 
-	// Create market data client
-	marketDataClient := twelvedata.NewClient(cfg.TwelveDataAPIKey)
+	marketDataClient := yfinance.NewClientWithBaseURL(cfg.YFinanceBaseURL)
 
-	// Create portfolio service
 	portfolioService, err := application.NewPortfolioService(repo, marketDataClient)
 	if err != nil {
 		t.Fatalf("portfolio service creation failed: %v", err)
 	}
 
-	// Create dashboard service
 	dashboardService := application.NewDashboardService(repo, priceHistoryRepo)
 
-	// Build server
 	server := buildServer(cfg, portfolioService, dashboardService)
 
-	// Verify end-to-end: the server can handle requests
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 	server.Handler.ServeHTTP(w, req)

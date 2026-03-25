@@ -18,8 +18,6 @@ import (
 	"github.com/jmanzanog/stock-tracker/internal/domain"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/config"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/finnhub"
-	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/twelvedata"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/marketdata/yfinance"
 	"github.com/jmanzanog/stock-tracker/internal/infrastructure/persistence/sqldb"
 	httpHandler "github.com/jmanzanog/stock-tracker/internal/interfaces/http"
@@ -95,14 +93,7 @@ func buildServer(cfg *config.Config, portfolioService *application.PortfolioServ
 
 // createMarketDataClient creates the appropriate market data client based on configuration
 func createMarketDataClient(cfg *config.Config) marketdata.MDataProvider {
-	switch cfg.MarketDataProvider {
-	case config.MarketDataProviderFinnhub:
-		return finnhub.NewClient(cfg.FinnhubAPIKey)
-	case config.MarketDataProviderYFinance:
-		return yfinance.NewClientWithBaseURL(cfg.YFinanceBaseURL)
-	default:
-		return twelvedata.NewClient(cfg.TwelveDataAPIKey)
-	}
+	return yfinance.NewClientWithBaseURL(cfg.YFinanceBaseURL)
 }
 
 // App wraps the application components for easier testing
@@ -141,7 +132,7 @@ func run() error {
 	}
 
 	marketDataClient := createMarketDataClient(cfg)
-	slog.Info("Using market data provider", "provider", cfg.MarketDataProvider)
+	slog.Info("Using market data provider", "provider", "yfinance")
 
 	repo, priceHistoryRepo, err := initializeDatabase(cfg)
 	if err != nil {
