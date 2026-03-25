@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -208,16 +209,8 @@ func (r *PriceHistoryRepository) CleanupOlderThan(ctx context.Context, cutoff ti
 
 func (r *PriceHistoryRepository) rebind(query string) string {
 	if r.db.Dialect.Name() == "oracle" {
-		var sb strings.Builder
-		sb.Grow(len(query))
-		for i := 0; i < len(query); i++ {
-			if query[i] == '$' && i+1 < len(query) && query[i+1] >= '0' && query[i+1] <= '9' {
-				sb.WriteByte(':')
-			} else {
-				sb.WriteByte(query[i])
-			}
-		}
-		return sb.String()
+		re := regexp.MustCompile(`\$(\d+)`)
+		return re.ReplaceAllString(query, `:$1`)
 	}
 	return query
 }

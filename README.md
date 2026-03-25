@@ -26,7 +26,7 @@ stock-tracker/
 │   ├── domain/              # Pure Business entities and logic
 │   ├── application/         # Use cases and orchestration
 │   ├── infrastructure/      # Adapter Implementations (PostgreSQL, Market Data)
-│   │   ├── marketdata/      # Market data providers (TwelveData, Finnhub, YFinance)
+│   │   ├── marketdata/      # Market data providers (YFinance)
 │   │   ├── persistence/     # SQL Repositories (PostgreSQL, Oracle)
 │   │   └── config/          # Configuration loading
 │   └── interfaces/          # HTTP Ports (Gin Handlers)
@@ -38,18 +38,7 @@ stock-tracker/
 - **Go 1.22+**
 - **Docker & Docker Compose** (Recommended for full stack)
 - **PostgreSQL 15+** (Or use the Docker container provided)
-- Market Data API Key (one of the following):
-  - [Twelve Data API Key](https://twelvedata.com/) - Default provider (8 credits/min free tier)
-  - [Finnhub API Key](https://finnhub.io/) - Alternative provider (60 req/min free tier)
-  - **YFinance Market Data Service** - Self-hosted Python microservice (no API key required, supports batch)
-
-### Market Data Provider Comparison
-
-| Provider | Batch API | Rate Limits (Free) | Notes |
-|----------|-----------|-------------------|-------|
-| **TwelveData** | ✅ Yes | 8 credits/min, 800/day | Each symbol = 1 credit |
-| **Finnhub** | ❌ No | 60 req/min, 30 req/s | Uses concurrent fallback |
-| **YFinance** | ✅ Yes | Self-hosted (no limit) | Best for batch operations |
+- **YFinance Market Data Service** - Self-hosted Python microservice (no API key required, supports batch)
 
 
 ## Domain Logic
@@ -87,17 +76,11 @@ cp .env.example .env
 
 4. Edit `.env` and add your keys:
 ```env
-# Market Data Provider: "twelvedata" (default), "finnhub", or "yfinance"
-MARKET_DATA_PROVIDER=twelvedata
+# Market Data Provider (only yfinance is supported)
+MARKET_DATA_PROVIDER=yfinance
 
-# TwelveData API Key (required if MARKET_DATA_PROVIDER=twelvedata)
-TWELVE_DATA_API_KEY=your_key
-
-# Finnhub API Key (required if MARKET_DATA_PROVIDER=finnhub)
-# FINNHUB_API_KEY=your_key
-
-# YFinance Service URL (required if MARKET_DATA_PROVIDER=yfinance)
-# YFINANCE_BASE_URL=http://localhost:8000
+# YFinance Service URL (required for yfinance provider)
+YFINANCE_BASE_URL=http://localhost:8000
 
 # Database config is pre-set for local docker dev
 ```
@@ -153,7 +136,7 @@ Content-Type: application/json
 ```
 
 ### Add Positions (Batch)
-Add multiple positions in a single request. The API uses batch operations when supported by the market data provider (YFinance), or falls back to concurrent processing (Finnhub/TwelveData).
+Add multiple positions in a single request. The API uses batch operations for better performance.
 
 ```http
 POST /api/v1/positions/batch
@@ -257,10 +240,8 @@ Environment variables (see `.env.example`):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MARKET_DATA_PROVIDER` | Market data provider (`twelvedata`, `finnhub`, or `yfinance`) | `twelvedata` |
-| `TWELVE_DATA_API_KEY` | API key for Twelve Data (required if provider is twelvedata) | - |
-| `FINNHUB_API_KEY` | API key for Finnhub (required if provider is finnhub) | - |
-| `YFINANCE_BASE_URL` | URL for yfinance microservice (required if provider is yfinance) | `http://localhost:8000` |
+| `MARKET_DATA_PROVIDER` | Market data provider (`yfinance`) | `yfinance` |
+| `YFINANCE_BASE_URL` | URL for yfinance microservice | `http://localhost:8000` |
 | `SERVER_PORT` | HTTP server port | `8080` |
 | `SERVER_HOST` | HTTP server host | `localhost` |
 | `PRICE_REFRESH_INTERVAL` | Auto-refresh interval | `60s` |
@@ -272,7 +253,7 @@ Environment variables (see `.env.example`):
 
 The YFinance provider uses a self-hosted Python microservice that wraps the [yfinance](https://github.com/ranaroussi/yfinance) library. This is ideal for:
 
-- **No API key required**: Unlike TwelveData or Finnhub, no registration needed
+- **No API key required**: No registration needed
 - **Global coverage**: Supports US, UK, EU, and Asian markets
 - **Self-hosted**: Full control over the service and data
 

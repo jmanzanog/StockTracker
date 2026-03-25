@@ -9,7 +9,7 @@ This file contains example curl commands to test the Stock Tracker API.
 go run cmd/tracker/main.go
 ```
 
-2. Make sure you have a valid API key in your `.env` file (TwelveData, Finnhub, or YFinance service running).
+2. Make sure you have the YFinance service running (see README.md for setup instructions).
 
 ## Examples
 
@@ -108,13 +108,8 @@ curl -X DELETE http://localhost:8080/api/v1/positions/{position-id}
 ## Notes
 
 - Prices are automatically refreshed every 60 seconds (configurable via `PRICE_REFRESH_INTERVAL`)
-- **Rate limits by provider**:
-  - TwelveData: 8 credits/min (each symbol = 1 credit)
-  - Finnhub: 60 req/min, 30 req/s
-  - YFinance: Self-hosted, no external limits
 - **Batch operations**: Use `/positions/batch` for adding multiple positions efficiently
-  - YFinance provider uses true batch API calls
-  - Other providers use concurrent processing with goroutines
-- ISINs must be valid and recognized by the configured market data provider
+- YFinance provider uses batch API calls for better performance
+- ISINs must be valid and recognized by the market data provider
 - All monetary values use `decimal.Decimal` for precision
 
