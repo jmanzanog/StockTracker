@@ -705,3 +705,198 @@ func TestGetDashboard_PortfolioFindError(t *testing.T) {
 		t.Fatal("expected error when portfolio repo fails")
 	}
 }
+
+func TestGetDashboard_WithSparklinesFromBatch(t *testing.T) {
+	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
+	position := domain.NewPosition(instrument, domain.NewDecimalFromInt(10000), "USD")
+	position.CurrentPrice = domain.NewDecimalFromInt(150)
+
+	portfolio := &domain.Portfolio{
+		ID:        "default",
+		Name:      "Default Portfolio",
+		Positions: []domain.Position{position},
+	}
+
+	now := time.Now()
+	sparklines := map[string][]domain.PriceHistory{
+		"US0378331005": {
+			{ID: "ph1", InstrumentISIN: "US0378331005", Price: domain.NewDecimalFromInt(145), RecordedAt: now.AddDate(0, 0, -1)},
+			{ID: "ph2", InstrumentISIN: "US0378331005", Price: domain.NewDecimalFromInt(148), RecordedAt: now.AddDate(0, 0, -2)},
+			{ID: "ph3", InstrumentISIN: "US0378331005", Price: domain.NewDecimalFromInt(150), RecordedAt: now},
+		},
+	}
+
+	repo := &mockDashboardPortfolioRepo{portfolio: portfolio}
+	priceRepo := &mockDashboardPriceHistoryRepo{sparklines: sparklines}
+
+	service := NewDashboardService(repo, priceRepo)
+
+	snapshot, err := service.GetDashboard(context.Background(), GetDashboardRequest{SparklineDays: []int{7, 30, 90}})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(snapshot.Positions) != 1 {
+		t.Fatalf("expected 1 position, got %d", len(snapshot.Positions))
+	}
+
+	pos := snapshot.Positions[0]
+	if len(pos.Sparklines["7d"]) != 3 {
+		t.Errorf("expected 3 sparkline points for 7d, got %d", len(pos.Sparklines["7d"]))
+	}
+	if len(pos.Sparklines["30d"]) != 3 {
+		t.Errorf("expected 3 sparkline points for 30d, got %d", len(pos.Sparklines["30d"]))
+	}
+	if len(pos.Sparklines["90d"]) != 3 {
+		t.Errorf("expected 3 sparkline points for 90d, got %d", len(pos.Sparklines["90d"]))
+	}
+}
+
+func TestGetDashboard_EmptySparklineDays(t *testing.T) {
+	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
+	position := domain.NewPosition(instrument, domain.NewDecimalFromInt(10000), "USD")
+	position.CurrentPrice = domain.NewDecimalFromInt(150)
+
+	portfolio := &domain.Portfolio{
+		ID:        "default",
+		Name:      "Default Portfolio",
+		Positions: []domain.Position{position},
+	}
+
+	repo := &mockDashboardPortfolioRepo{portfolio: portfolio}
+	priceRepo := &mockDashboardPriceHistoryRepo{}
+
+	service := NewDashboardService(repo, priceRepo)
+
+	snapshot, err := service.GetDashboard(context.Background(), GetDashboardRequest{SparklineDays: []int{}})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(snapshot.Positions) != 1 {
+		t.Fatalf("expected 1 position, got %d", len(snapshot.Positions))
+	}
+
+	pos := snapshot.Positions[0]
+	if len(pos.Sparklines) != 0 {
+		t.Errorf("expected 0 sparklines, got %d", len(pos.Sparklines))
+	}
+}
+
+func TestGetDashboard_ZeroTotalInvested(t *testing.T) {
+	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
+	position := domain.NewPosition(instrument, domain.NewDecimalFromInt(0), "USD")
+	position.CurrentPrice = domain.NewDecimalFromInt(150)
+
+	portfolio := &domain.Portfolio{
+		ID:        "default",
+		Name:      "Default Portfolio",
+		Positions: []domain.Position{position},
+	}
+
+	repo := &mockDashboardPortfolioRepo{portfolio: portfolio}
+	priceRepo := &mockDashboardPriceHistoryRepo{}
+
+	service := NewDashboardService(repo, priceRepo)
+
+	snapshot, err := service.GetDashboard(context.Background(), GetDashboardRequest{SparklineDays: []int{7}})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if snapshot.TotalInvested.String() != "0" {
+		t.Errorf("expected TotalInvested=0, got %s", snapshot.TotalInvested.String())
+	}
+
+	if snapshot.PnLPercent.String() != "0" {
+		t.Errorf("expected PnLPercent=0, got %s", snapshot.PnLPercent.String())
+	}
+}
+
+func TestGetDashboard_BatchErrorContinues(t *testing.T) {
+	instrument := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
+	position := domain.NewPosition(instrument, domain.NewDecimalFromInt(10000), "USD")
+	position.CurrentPrice = domain.NewDecimalFromInt(150)
+
+	portfolio := &domain.Portfolio{
+		ID:        "default",
+		Name:      "Default Portfolio",
+		Positions: []domain.Position{position},
+	}
+
+	repo := &mockDashboardPortfolioRepo{portfolio: portfolio}
+	priceRepo := &mockDashboardPriceHistoryRepo{
+		batchError: errors.New("connection lost"),
+	}
+
+	service := NewDashboardService(repo, priceRepo)
+
+	snapshot, err := service.GetDashboard(context.Background(), GetDashboardRequest{SparklineDays: []int{7, 30}})
+
+	if err != nil {
+		t.Fatalf("expected no error despite batch error, got %v", err)
+	}
+
+	if len(snapshot.Positions) != 1 {
+		t.Fatalf("expected 1 position, got %d", len(snapshot.Positions))
+	}
+
+	pos := snapshot.Positions[0]
+	if len(pos.Sparklines["7d"]) != 0 {
+		t.Error("expected empty sparkline when batch fails")
+	}
+	if len(pos.Sparklines["30d"]) != 0 {
+		t.Error("expected empty sparkline when batch fails")
+	}
+}
+
+func TestGetDashboard_MultipleCurrenciesAndTypes(t *testing.T) {
+	instrument1 := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
+	instrument2 := domain.NewInstrument("IE00B4L5Y983", "VWCE", "Vanguard FTSE All-World", domain.InstrumentTypeETF, "EUR", "XETRA", "Diversified")
+	instrument3 := domain.NewInstrument("US0000000007", "JPM", "JPMorgan Chase", domain.InstrumentTypeStock, "USD", "NYSE", "Financial")
+
+	position1 := domain.NewPosition(instrument1, domain.NewDecimalFromInt(10000), "USD")
+	position1.CurrentPrice = domain.NewDecimalFromInt(150)
+
+	position2 := domain.NewPosition(instrument2, domain.NewDecimalFromInt(8000), "EUR")
+	position2.CurrentPrice = domain.NewDecimalFromInt(100)
+
+	position3 := domain.NewPosition(instrument3, domain.NewDecimalFromInt(15000), "USD")
+	position3.CurrentPrice = domain.NewDecimalFromInt(180)
+
+	portfolio := &domain.Portfolio{
+		ID:        "default",
+		Name:      "Default Portfolio",
+		Positions: []domain.Position{position1, position2, position3},
+	}
+
+	repo := &mockDashboardPortfolioRepo{portfolio: portfolio}
+	priceRepo := &mockDashboardPriceHistoryRepo{}
+
+	service := NewDashboardService(repo, priceRepo)
+
+	snapshot, err := service.GetDashboard(context.Background(), GetDashboardRequest{SparklineDays: []int{7}})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(snapshot.ByCurrency) != 2 {
+		t.Errorf("expected 2 currencies, got %d", len(snapshot.ByCurrency))
+	}
+
+	if len(snapshot.ByType) != 2 {
+		t.Errorf("expected 2 types, got %d", len(snapshot.ByType))
+	}
+
+	if len(snapshot.BySector) != 3 {
+		t.Errorf("expected 3 sectors, got %d", len(snapshot.BySector))
+	}
+
+	if snapshot.TotalInvested.String() != "33000" {
+		t.Errorf("expected TotalInvested=33000, got %s", snapshot.TotalInvested.String())
+	}
+}
