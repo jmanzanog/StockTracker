@@ -44,9 +44,17 @@ func (m *mockPriceRefresher) CallCount() int {
 	return m.callCount
 }
 
-type mockPriceHistoryRepo struct{}
+type mockPriceHistoryRepo struct {
+	saveBatchFunc  func(ctx context.Context, history []domain.PriceHistory) error
+	cleanupFunc    func(ctx context.Context, cutoff time.Time) (int64, error)
+	cleanupDeleted int64
+	cleanupError   error
+}
 
 func (m *mockPriceHistoryRepo) SaveBatch(ctx context.Context, history []domain.PriceHistory) error {
+	if m.saveBatchFunc != nil {
+		return m.saveBatchFunc(ctx, history)
+	}
 	return nil
 }
 
@@ -63,7 +71,10 @@ func (m *mockPriceHistoryRepo) GetSparklinesBatch(ctx context.Context, requests 
 }
 
 func (m *mockPriceHistoryRepo) CleanupOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
-	return 0, nil
+	if m.cleanupFunc != nil {
+		return m.cleanupFunc(ctx, cutoff)
+	}
+	return m.cleanupDeleted, m.cleanupError
 }
 
 func TestPriceUpdater_Start(t *testing.T) {
@@ -126,5 +137,54 @@ func TestPriceUpdater_Start(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 
 		cancel()
+	})
+
+	t.Run("Handles captureHistory error gracefully", func(t *testing.T) {
+		mockRefresher := &mockPriceRefresher{}
+		mockHistoryRepo := &mockPriceHistoryRepo{
+			saveBatchFunc: func(ctx context.Context, history []domain.PriceHistory) error {
+				return errors.New("save batch failed")
+			},
+		}
+		updater := NewPriceUpdater(mockRefresher, mockHistoryRepo, 10*time.Millisecond)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go updater.Start(ctx)
+		time.Sleep(30 * time.Millisecond)
+		updater.Stop()
+	})
+}
+
+func TestPriceUpdater_CleanupOldHistory(t *testing.T) {
+	t.Run("cleanup success with deleted rows", func(t *testing.T) {
+		mockRefresher := &mockPriceRefresher{}
+		mockHistoryRepo := &mockPriceHistoryRepo{
+			cleanupDeleted: 100,
+		}
+		updater := NewPriceUpdater(mockRefresher, mockHistoryRepo, time.Hour)
+
+		updater.cleanupOldHistory(context.Background())
+	})
+
+	t.Run("cleanup success with zero deleted", func(t *testing.T) {
+		mockRefresher := &mockPriceRefresher{}
+		mockHistoryRepo := &mockPriceHistoryRepo{
+			cleanupDeleted: 0,
+		}
+		updater := NewPriceUpdater(mockRefresher, mockHistoryRepo, time.Hour)
+
+		updater.cleanupOldHistory(context.Background())
+	})
+
+	t.Run("cleanup error", func(t *testing.T) {
+		mockRefresher := &mockPriceRefresher{}
+		mockHistoryRepo := &mockPriceHistoryRepo{
+			cleanupError: errors.New("database error"),
+		}
+		updater := NewPriceUpdater(mockRefresher, mockHistoryRepo, time.Hour)
+
+		updater.cleanupOldHistory(context.Background())
 	})
 }

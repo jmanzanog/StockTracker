@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/cockroachdb/apd/v3"
 	"github.com/gin-gonic/gin"
@@ -852,4 +853,183 @@ func TestNewHandler(t *testing.T) {
 	if handler.portfolioService == nil {
 		t.Error("expected non-nil portfolio service")
 	}
+}
+
+func TestNewHandlerWithDashboard(t *testing.T) {
+	mockService := &MockPortfolioService{}
+	dashboardService := application.NewDashboardService(&mockPortfolioRepoForDashboard{}, &mockPriceHistoryRepoForDashboard{})
+
+	handler := NewHandlerWithDashboard(mockService, dashboardService)
+
+	if handler.portfolioService == nil {
+		t.Error("expected non-nil portfolio service")
+	}
+	if handler.dashboardService == nil {
+		t.Error("expected non-nil dashboard service")
+	}
+}
+
+func TestGetDashboard_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockService := &MockPortfolioService{}
+	dashboardService := application.NewDashboardService(&mockPortfolioRepoForDashboard{}, &mockPriceHistoryRepoForDashboard{})
+
+	handler := NewHandlerWithDashboard(mockService, dashboardService)
+	router := setupRouter(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboard?sparklines=7,30", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if response["portfolio_id"] != "default" {
+		t.Errorf("expected portfolio_id 'default', got %v", response["portfolio_id"])
+	}
+}
+
+func TestGetDashboard_ServiceError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockService := &MockPortfolioService{}
+	dashboardService := application.NewDashboardService(&mockPortfolioRepoWithError{}, &mockPriceHistoryRepoForDashboard{})
+
+	handler := NewHandlerWithDashboard(mockService, dashboardService)
+	router := setupRouter(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboard", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestGetDashboard_NoDashboardService(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockService := &MockPortfolioService{}
+	handler := NewHandlerWithDashboard(mockService, nil)
+	router := setupRouter(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboard", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+	}
+}
+
+func TestParseSparklineDays(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []int
+	}{
+		{"valid single value", "7", []int{7}},
+		{"valid multiple values", "7,30,90", []int{7, 30, 90}},
+		{"with spaces", "7, 30, 90", []int{7, 30, 90}},
+		{"exceeds max ranges", "1,2,3,4,5,6", []int{1, 2, 3, 4, 5}},
+		{"exceeds max days", "400", []int{7, 30, 90}},
+		{"negative value", "-7", []int{7, 30, 90}},
+		{"invalid value", "abc", []int{7, 30, 90}},
+		{"empty string", "", []int{7, 30, 90}},
+		{"mixed valid and invalid", "7,abc,90", []int{7, 90}},
+		{"zero value", "0", []int{7, 30, 90}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := parseSparklineDays(tc.input)
+			if len(result) != len(tc.expected) {
+				t.Errorf("expected length %d, got %d", len(tc.expected), len(result))
+				return
+			}
+			for i, v := range result {
+				if v != tc.expected[i] {
+					t.Errorf("expected[%d]=%d, got %d", i, tc.expected[i], v)
+				}
+			}
+		})
+	}
+}
+
+type mockPortfolioRepoForDashboard struct{}
+
+func (m *mockPortfolioRepoForDashboard) FindByID(ctx context.Context, id string) (*domain.Portfolio, error) {
+	return &domain.Portfolio{
+		ID: "default",
+		Positions: []domain.Position{
+			domain.NewPosition(
+				domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology"),
+				domain.NewDecimalFromInt(10000),
+				"USD",
+			),
+		},
+	}, nil
+}
+
+func (m *mockPortfolioRepoForDashboard) Save(ctx context.Context, p *domain.Portfolio) error {
+	return nil
+}
+
+func (m *mockPortfolioRepoForDashboard) FindAll(ctx context.Context) ([]*domain.Portfolio, error) {
+	return []*domain.Portfolio{}, nil
+}
+
+func (m *mockPortfolioRepoForDashboard) Delete(ctx context.Context, id string) error {
+	return nil
+}
+
+type mockPriceHistoryRepoForDashboard struct{}
+
+func (m *mockPriceHistoryRepoForDashboard) SaveBatch(ctx context.Context, history []domain.PriceHistory) error {
+	return nil
+}
+
+func (m *mockPriceHistoryRepoForDashboard) GetByISIN(ctx context.Context, isin string, from, to time.Time) ([]domain.PriceHistory, error) {
+	return nil, nil
+}
+
+func (m *mockPriceHistoryRepoForDashboard) GetSparkline(ctx context.Context, isin string, days int) ([]domain.PriceHistory, error) {
+	return nil, nil
+}
+
+func (m *mockPriceHistoryRepoForDashboard) GetSparklinesBatch(ctx context.Context, requests []domain.SparklineRequest) ([]domain.SparklineResult, error) {
+	return []domain.SparklineResult{}, nil
+}
+
+func (m *mockPriceHistoryRepoForDashboard) CleanupOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
+	return 0, nil
+}
+
+type mockPortfolioRepoWithError struct{}
+
+func (m *mockPortfolioRepoWithError) FindByID(ctx context.Context, id string) (*domain.Portfolio, error) {
+	return nil, fmt.Errorf("database error")
+}
+
+func (m *mockPortfolioRepoWithError) Save(ctx context.Context, p *domain.Portfolio) error {
+	return nil
+}
+
+func (m *mockPortfolioRepoWithError) FindAll(ctx context.Context) ([]*domain.Portfolio, error) {
+	return nil, nil
+}
+
+func (m *mockPortfolioRepoWithError) Delete(ctx context.Context, id string) error {
+	return nil
 }
