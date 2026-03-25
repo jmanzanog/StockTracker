@@ -15,6 +15,94 @@ type DashboardSnapshot struct {
 	Positions     []PositionDashboard  `json:"positions"`
 }
 
+func (d *DashboardSnapshot) CalculateAllocations() {
+	d.ByCurrency = d.calculateByCurrency()
+	d.ByType = d.calculateByType()
+	d.BySector = d.calculateBySector()
+}
+
+func (d *DashboardSnapshot) calculateByCurrency() []CurrencyAllocation {
+	currencyMap := make(map[string]Decimal)
+
+	for _, pos := range d.Positions {
+		existing := currencyMap[pos.Currency]
+		newVal, _ := existing.Add(pos.CurrentValue)
+		currencyMap[pos.Currency] = newVal
+	}
+
+	allocations := make([]CurrencyAllocation, 0, len(currencyMap))
+	for currency, value := range currencyMap {
+		percent := NewDecimalFromInt(0)
+		if !d.TotalValue.IsZero() {
+			divResult, _ := value.Div(d.TotalValue)
+			mulResult, _ := divResult.Mul(NewDecimalFromInt(100))
+			percent, _ = mulResult.Round(2)
+		}
+		allocations = append(allocations, CurrencyAllocation{
+			Currency:   currency,
+			TotalValue: value,
+			Percent:    percent,
+		})
+	}
+	return allocations
+}
+
+func (d *DashboardSnapshot) calculateByType() []TypeAllocation {
+	typeMap := make(map[InstrumentType]Decimal)
+
+	for _, pos := range d.Positions {
+		existing := typeMap[pos.Type]
+		newVal, _ := existing.Add(pos.CurrentValue)
+		typeMap[pos.Type] = newVal
+	}
+
+	allocations := make([]TypeAllocation, 0, len(typeMap))
+	for itype, value := range typeMap {
+		percent := NewDecimalFromInt(0)
+		if !d.TotalValue.IsZero() {
+			divResult, _ := value.Div(d.TotalValue)
+			mulResult, _ := divResult.Mul(NewDecimalFromInt(100))
+			percent, _ = mulResult.Round(2)
+		}
+		allocations = append(allocations, TypeAllocation{
+			Type:       itype,
+			TotalValue: value,
+			Percent:    percent,
+		})
+	}
+	return allocations
+}
+
+func (d *DashboardSnapshot) calculateBySector() []SectorAllocation {
+	sectorMap := make(map[string]Decimal)
+
+	for _, pos := range d.Positions {
+		sector := pos.Sector
+		if sector == "" {
+			sector = "N/A"
+		}
+		existing := sectorMap[sector]
+		newVal, _ := existing.Add(pos.CurrentValue)
+		sectorMap[sector] = newVal
+	}
+
+	allocations := make([]SectorAllocation, 0, len(sectorMap))
+	for sector, value := range sectorMap {
+		percent := NewDecimalFromInt(0)
+		if !d.TotalValue.IsZero() {
+			divResult, _ := value.Div(d.TotalValue)
+			mulResult, _ := divResult.Mul(NewDecimalFromInt(100))
+			percent, _ = mulResult.Round(2)
+		}
+		allocations = append(allocations, SectorAllocation{
+			Sector:     sector,
+			TotalValue: value,
+			Percent:    percent,
+		})
+	}
+	return allocations
+}
+
 type CurrencyAllocation struct {
 	Currency   string  `json:"currency"`
 	TotalValue Decimal `json:"total_value"`

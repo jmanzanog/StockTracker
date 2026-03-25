@@ -19,17 +19,46 @@ func TestPriceHistoryRepository_SaveBatch(t *testing.T) {
 	wrapper := New(db, &stubDialect{name: "postgres"})
 	repo := NewPriceHistoryRepository(wrapper)
 
-	t.Run("success", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectPrepare("INSERT INTO price_history")
+	t.Run("success single row", func(t *testing.T) {
 		mock.ExpectExec("INSERT INTO price_history").WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectCommit()
 
 		history := []domain.PriceHistory{
 			{
 				ID:             "ph1",
 				InstrumentISIN: "US0378331005",
 				Price:          domain.NewDecimalFromInt(150),
+				Currency:       "USD",
+				RecordedAt:     time.Now(),
+				CreatedAt:      time.Now(),
+			},
+		}
+
+		err := repo.SaveBatch(context.Background(), history)
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet expectations: %v", err)
+		}
+	})
+
+	t.Run("success multiple rows", func(t *testing.T) {
+		mock.ExpectExec("INSERT INTO price_history").WillReturnResult(sqlmock.NewResult(0, 2))
+
+		history := []domain.PriceHistory{
+			{
+				ID:             "ph1",
+				InstrumentISIN: "US0378331005",
+				Price:          domain.NewDecimalFromInt(150),
+				Currency:       "USD",
+				RecordedAt:     time.Now(),
+				CreatedAt:      time.Now(),
+			},
+			{
+				ID:             "ph2",
+				InstrumentISIN: "US5949181045",
+				Price:          domain.NewDecimalFromInt(300),
 				Currency:       "USD",
 				RecordedAt:     time.Now(),
 				CreatedAt:      time.Now(),
@@ -53,10 +82,8 @@ func TestPriceHistoryRepository_SaveBatch(t *testing.T) {
 		}
 	})
 
-	t.Run("prepare error", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectPrepare("INSERT INTO price_history").WillReturnError(context.DeadlineExceeded)
-		mock.ExpectRollback()
+	t.Run("exec error", func(t *testing.T) {
+		mock.ExpectExec("INSERT INTO price_history").WillReturnError(context.DeadlineExceeded)
 
 		history := []domain.PriceHistory{
 			{
@@ -71,7 +98,7 @@ func TestPriceHistoryRepository_SaveBatch(t *testing.T) {
 
 		err := repo.SaveBatch(context.Background(), history)
 		if err == nil {
-			t.Error("expected error when prepare fails")
+			t.Error("expected error when exec fails")
 		}
 
 		if err := mock.ExpectationsWereMet(); err != nil {

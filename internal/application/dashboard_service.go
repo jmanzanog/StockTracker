@@ -164,150 +164,16 @@ func (s *DashboardService) GetDashboard(ctx context.Context, req GetDashboardReq
 		}
 	}
 
-	byCurrency := s.calculateByCurrency(positionDashboards, totalValue)
-	byType := s.calculateByType(positionDashboards, totalValue)
-	bySector := s.calculateBySector(positionDashboards, totalValue)
-
-	return &domain.DashboardSnapshot{
+	snapshot := &domain.DashboardSnapshot{
 		PortfolioID:   portfolio.ID,
 		GeneratedAt:   time.Now(),
 		TotalValue:    totalValue,
 		TotalInvested: totalInvested,
 		TotalPnL:      totalPnL,
 		PnLPercent:    pnlPercent,
-		ByCurrency:    byCurrency,
-		ByType:        byType,
-		BySector:      bySector,
 		Positions:     positionDashboards,
-	}, nil
-}
-
-func (s *DashboardService) calculateByCurrency(positions []domain.PositionDashboard, totalValue domain.Decimal) []domain.CurrencyAllocation {
-	currencyMap := make(map[string]domain.Decimal)
-
-	for _, pos := range positions {
-		existing := currencyMap[pos.Currency]
-		newVal, err := existing.Add(pos.CurrentValue)
-		if err != nil {
-			slog.Warn("failed to add currency value", "currency", pos.Currency, "error", err)
-			continue
-		}
-		currencyMap[pos.Currency] = newVal
 	}
+	snapshot.CalculateAllocations()
 
-	allocations := make([]domain.CurrencyAllocation, 0, len(currencyMap))
-	for currency, value := range currencyMap {
-		percent := domain.NewDecimalFromInt(0)
-		if !totalValue.IsZero() {
-			divResult, err := value.Div(totalValue)
-			if err != nil {
-				slog.Warn("failed to calculate currency percent", "currency", currency, "error", err)
-				continue
-			}
-			mulResult, err := divResult.Mul(domain.NewDecimalFromInt(100))
-			if err != nil {
-				slog.Warn("failed to calculate currency percent", "currency", currency, "error", err)
-				continue
-			}
-			percent, err = mulResult.Round(2)
-			if err != nil {
-				slog.Warn("failed to round currency percent", "currency", currency, "error", err)
-				percent = domain.NewDecimalFromInt(0)
-			}
-		}
-		allocations = append(allocations, domain.CurrencyAllocation{
-			Currency:   currency,
-			TotalValue: value,
-			Percent:    percent,
-		})
-	}
-	return allocations
-}
-
-func (s *DashboardService) calculateByType(positions []domain.PositionDashboard, totalValue domain.Decimal) []domain.TypeAllocation {
-	typeMap := make(map[domain.InstrumentType]domain.Decimal)
-
-	for _, pos := range positions {
-		existing := typeMap[pos.Type]
-		newVal, err := existing.Add(pos.CurrentValue)
-		if err != nil {
-			slog.Warn("failed to add type value", "type", pos.Type, "error", err)
-			continue
-		}
-		typeMap[pos.Type] = newVal
-	}
-
-	allocations := make([]domain.TypeAllocation, 0, len(typeMap))
-	for itype, value := range typeMap {
-		percent := domain.NewDecimalFromInt(0)
-		if !totalValue.IsZero() {
-			divResult, err := value.Div(totalValue)
-			if err != nil {
-				slog.Warn("failed to calculate type percent", "type", itype, "error", err)
-				continue
-			}
-			mulResult, err := divResult.Mul(domain.NewDecimalFromInt(100))
-			if err != nil {
-				slog.Warn("failed to calculate type percent", "type", itype, "error", err)
-				continue
-			}
-			percent, err = mulResult.Round(2)
-			if err != nil {
-				slog.Warn("failed to round type percent", "type", itype, "error", err)
-				percent = domain.NewDecimalFromInt(0)
-			}
-		}
-		allocations = append(allocations, domain.TypeAllocation{
-			Type:       itype,
-			TotalValue: value,
-			Percent:    percent,
-		})
-	}
-	return allocations
-}
-
-func (s *DashboardService) calculateBySector(positions []domain.PositionDashboard, totalValue domain.Decimal) []domain.SectorAllocation {
-	sectorMap := make(map[string]domain.Decimal)
-
-	for _, pos := range positions {
-		sector := pos.Sector
-		if sector == "" {
-			sector = "N/A"
-		}
-		existing := sectorMap[sector]
-		newVal, err := existing.Add(pos.CurrentValue)
-		if err != nil {
-			slog.Warn("failed to add sector value", "sector", sector, "error", err)
-			continue
-		}
-		sectorMap[sector] = newVal
-	}
-
-	allocations := make([]domain.SectorAllocation, 0, len(sectorMap))
-	for sector, value := range sectorMap {
-		percent := domain.NewDecimalFromInt(0)
-		if !totalValue.IsZero() {
-			divResult, err := value.Div(totalValue)
-			if err != nil {
-				slog.Warn("failed to calculate sector percent", "sector", sector, "error", err)
-				continue
-			}
-			mulResult, err := divResult.Mul(domain.NewDecimalFromInt(100))
-			if err != nil {
-				slog.Warn("failed to calculate sector percent", "sector", sector, "error", err)
-				continue
-			}
-			percent, err = mulResult.Round(2)
-			if err != nil {
-				slog.Warn("failed to round sector percent", "sector", sector, "error", err)
-				percent = domain.NewDecimalFromInt(0)
-			}
-		}
-		allocations = append(allocations, domain.SectorAllocation{
-			Sector:     sector,
-			TotalValue: value,
-			Percent:    percent,
-		})
-	}
-	return allocations
+	return snapshot, nil
 }

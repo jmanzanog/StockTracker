@@ -2,7 +2,6 @@ package sqldb
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -25,27 +24,25 @@ func (r *PriceHistoryRepository) SaveBatch(ctx context.Context, history []domain
 		return nil
 	}
 
-	return r.db.WithTx(ctx, func(tx *sql.Tx) error {
-		stmt, err := tx.PrepareContext(ctx, r.rebind(`
-			INSERT INTO price_history (id, instrument_isin, price, currency, recorded_at, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6)
-		`))
-		if err != nil {
-			return fmt.Errorf("preparing statement: %w", err)
-		}
-		defer func() {
-			_ = stmt.Close()
-		}()
+	valueStrings := make([]string, 0, len(history))
+	valueArgs := make([]interface{}, 0, len(history)*6)
 
-		for _, h := range history {
-			_, err := stmt.ExecContext(ctx, h.ID, h.InstrumentISIN, h.Price, h.Currency, h.RecordedAt, h.CreatedAt)
-			if err != nil {
-				return fmt.Errorf("inserting price history for %s: %w", h.InstrumentISIN, err)
-			}
-		}
+	for _, h := range history {
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?)")
+		valueArgs = append(valueArgs, h.ID, h.InstrumentISIN, h.Price, h.Currency, h.RecordedAt, h.CreatedAt)
+	}
 
-		return nil
-	})
+	query := r.rebind(fmt.Sprintf(`
+		INSERT INTO price_history (id, instrument_isin, price, currency, recorded_at, created_at)
+		VALUES %s
+	`, strings.Join(valueStrings, ", ")))
+
+	_, err := r.db.ExecContext(ctx, query, valueArgs...)
+	if err != nil {
+		return fmt.Errorf("bulk inserting price history: %w", err)
+	}
+
+	return nil
 }
 
 func (r *PriceHistoryRepository) GetByISIN(ctx context.Context, isin string, from, to time.Time) ([]domain.PriceHistory, error) {
