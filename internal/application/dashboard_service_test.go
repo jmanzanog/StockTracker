@@ -650,3 +650,58 @@ func TestGetDashboard_ThreeSparklineRanges(t *testing.T) {
 		t.Error("expected 90d sparkline")
 	}
 }
+
+func TestGetDashboard_VerifyAllocationsAfterCalculation(t *testing.T) {
+	instrument1 := domain.NewInstrument("US0378331005", "AAPL", "Apple Inc.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
+	instrument2 := domain.NewInstrument("US5949181045", "MSFT", "Microsoft Corp.", domain.InstrumentTypeStock, "USD", "NASDAQ", "Technology")
+
+	position1 := domain.NewPosition(instrument1, domain.NewDecimalFromInt(10000), "USD")
+	position1.CurrentPrice = domain.NewDecimalFromInt(150)
+
+	position2 := domain.NewPosition(instrument2, domain.NewDecimalFromInt(5000), "USD")
+	position2.CurrentPrice = domain.NewDecimalFromInt(300)
+
+	portfolio := &domain.Portfolio{
+		ID:        "default",
+		Name:      "Default Portfolio",
+		Positions: []domain.Position{position1, position2},
+	}
+
+	repo := &mockDashboardPortfolioRepo{portfolio: portfolio}
+	priceRepo := &mockDashboardPriceHistoryRepo{}
+
+	service := NewDashboardService(repo, priceRepo)
+
+	snapshot, err := service.GetDashboard(context.Background(), GetDashboardRequest{SparklineDays: []int{7}})
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if snapshot.TotalInvested.String() != "15000" {
+		t.Errorf("expected TotalInvested=15000, got %s", snapshot.TotalInvested.String())
+	}
+
+	if len(snapshot.ByCurrency) != 1 {
+		t.Errorf("expected 1 currency allocation, got %d", len(snapshot.ByCurrency))
+	}
+	if len(snapshot.ByType) != 1 {
+		t.Errorf("expected 1 type allocation, got %d", len(snapshot.ByType))
+	}
+	if len(snapshot.BySector) != 1 {
+		t.Errorf("expected 1 sector allocation, got %d", len(snapshot.BySector))
+	}
+}
+
+func TestGetDashboard_PortfolioFindError(t *testing.T) {
+	repo := &mockDashboardPortfolioRepo{findError: errors.New("database connection lost")}
+	priceRepo := &mockDashboardPriceHistoryRepo{}
+
+	service := NewDashboardService(repo, priceRepo)
+
+	_, err := service.GetDashboard(context.Background(), GetDashboardRequest{SparklineDays: []int{7}})
+
+	if err == nil {
+		t.Fatal("expected error when portfolio repo fails")
+	}
+}

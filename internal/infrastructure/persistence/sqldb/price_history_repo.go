@@ -24,18 +24,31 @@ func (r *PriceHistoryRepository) SaveBatch(ctx context.Context, history []domain
 		return nil
 	}
 
+	isOracle := r.db.Dialect.Name() == "oracle"
+	placeholder := "$"
+	if isOracle {
+		placeholder = ":"
+	}
+
 	valueStrings := make([]string, 0, len(history))
 	valueArgs := make([]interface{}, 0, len(history)*6)
 
-	for _, h := range history {
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?)")
+	for i, h := range history {
+		offset := i * 6
+		valueStrings = append(valueStrings, fmt.Sprintf("(%s%d, %s%d, %s%d, %s%d, %s%d, %s%d)",
+			placeholder, offset+1,
+			placeholder, offset+2,
+			placeholder, offset+3,
+			placeholder, offset+4,
+			placeholder, offset+5,
+			placeholder, offset+6))
 		valueArgs = append(valueArgs, h.ID, h.InstrumentISIN, h.Price, h.Currency, h.RecordedAt, h.CreatedAt)
 	}
 
-	query := r.rebind(fmt.Sprintf(`
+	query := fmt.Sprintf(`
 		INSERT INTO price_history (id, instrument_isin, price, currency, recorded_at, created_at)
 		VALUES %s
-	`, strings.Join(valueStrings, ", ")))
+	`, strings.Join(valueStrings, ", "))
 
 	_, err := r.db.ExecContext(ctx, query, valueArgs...)
 	if err != nil {
