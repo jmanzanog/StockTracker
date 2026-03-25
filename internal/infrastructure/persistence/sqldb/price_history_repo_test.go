@@ -280,6 +280,70 @@ func TestPriceHistoryRepository_GetSparklinesBatch(t *testing.T) {
 			t.Errorf("unmet expectations: %v", err)
 		}
 	})
+
+	t.Run("query error", func(t *testing.T) {
+		mock.ExpectQuery("SELECT id, instrument_isin, price, currency, recorded_at, created_at FROM price_history").
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnError(context.DeadlineExceeded)
+
+		requests := []domain.SparklineRequest{
+			{ISIN: "US0378331005", Days: 7},
+		}
+
+		_, err := repo.GetSparklinesBatch(context.Background(), requests)
+		if err == nil {
+			t.Error("expected error when query fails")
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet expectations: %v", err)
+		}
+	})
+
+	t.Run("scan error", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"id", "instrument_isin", "price", "currency", "recorded_at", "created_at"}).
+			AddRow("invalid", "US0378331005", "not-a-number", "USD", time.Now(), time.Now())
+
+		mock.ExpectQuery("SELECT id, instrument_isin, price, currency, recorded_at, created_at FROM price_history").
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnRows(rows)
+
+		requests := []domain.SparklineRequest{
+			{ISIN: "US0378331005", Days: 7},
+		}
+
+		_, err := repo.GetSparklinesBatch(context.Background(), requests)
+		if err == nil {
+			t.Error("expected error when scan fails")
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet expectations: %v", err)
+		}
+	})
+
+	t.Run("rows error", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"id", "instrument_isin", "price", "currency", "recorded_at", "created_at"}).
+			AddRow("ph1", "US0378331005", "150", "USD", time.Now(), time.Now()).
+			RowError(0, context.DeadlineExceeded)
+
+		mock.ExpectQuery("SELECT id, instrument_isin, price, currency, recorded_at, created_at FROM price_history").
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnRows(rows)
+
+		requests := []domain.SparklineRequest{
+			{ISIN: "US0378331005", Days: 7},
+		}
+
+		_, err := repo.GetSparklinesBatch(context.Background(), requests)
+		if err == nil {
+			t.Error("expected error when rows have error")
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet expectations: %v", err)
+		}
+	})
 }
 
 func TestPriceHistoryRepository_CleanupOlderThan(t *testing.T) {
@@ -320,6 +384,22 @@ func TestPriceHistoryRepository_CleanupOlderThan(t *testing.T) {
 		_, err := repo.CleanupOlderThan(context.Background(), cutoff)
 		if err == nil {
 			t.Error("expected error when delete fails")
+		}
+
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet expectations: %v", err)
+		}
+	})
+
+	t.Run("rows affected error", func(t *testing.T) {
+		mock.ExpectExec("DELETE FROM price_history").
+			WithArgs(sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewErrorResult(context.DeadlineExceeded))
+
+		cutoff := time.Now()
+		_, err := repo.CleanupOlderThan(context.Background(), cutoff)
+		if err == nil {
+			t.Error("expected error when rows affected fails")
 		}
 
 		if err := mock.ExpectationsWereMet(); err != nil {
