@@ -296,15 +296,15 @@ func TestGetDashboard_SectorAllocation_UnknownSector(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	foundUnknown := false
+	foundNA := false
 	for _, alloc := range snapshot.BySector {
-		if alloc.Sector == "Unknown" {
-			foundUnknown = true
+		if alloc.Sector == "N/A" {
+			foundNA = true
 			break
 		}
 	}
-	if !foundUnknown {
-		t.Error("expected 'Unknown' sector for empty sector field")
+	if !foundNA {
+		t.Error("expected 'N/A' sector for empty sector field")
 	}
 }
 

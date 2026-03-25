@@ -35,6 +35,9 @@ func (u *PriceUpdater) Start(ctx context.Context) {
 	ticker := time.NewTicker(u.interval)
 	defer ticker.Stop()
 
+	cleanupTicker := time.NewTicker(24 * time.Hour)
+	defer cleanupTicker.Stop()
+
 	slog.Info("Price updater started", "interval", u.interval)
 
 	for {
@@ -48,6 +51,8 @@ func (u *PriceUpdater) Start(ctx context.Context) {
 					slog.Warn("Failed to capture price history", "error", err)
 				}
 			}
+		case <-cleanupTicker.C:
+			u.cleanupOldHistory(ctx)
 		case <-u.stopChan:
 			slog.Info("Price updater stopped")
 			return
@@ -87,4 +92,14 @@ func (u *PriceUpdater) captureHistory(ctx context.Context) error {
 
 func (u *PriceUpdater) Stop() {
 	close(u.stopChan)
+}
+
+func (u *PriceUpdater) cleanupOldHistory(ctx context.Context) {
+	cutoff := time.Now().AddDate(0, 0, -90)
+	deleted, err := u.priceHistoryRepo.CleanupOlderThan(ctx, cutoff)
+	if err != nil {
+		slog.Warn("Failed to cleanup old price history", "error", err)
+	} else if deleted > 0 {
+		slog.Info("Cleaned up old price history", "rows_deleted", deleted, "cutoff", cutoff)
+	}
 }

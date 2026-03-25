@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -107,6 +108,7 @@ func (r *PriceHistoryRepository) GetSparklinesBatch(ctx context.Context, request
 	for isin := range isinSet {
 		isins = append(isins, isin)
 	}
+	sort.Strings(isins)
 
 	query := r.rebind(`
 		SELECT id, instrument_isin, price, currency, recorded_at, created_at

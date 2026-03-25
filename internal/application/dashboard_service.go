@@ -75,15 +75,15 @@ func (s *DashboardService) GetDashboard(ctx context.Context, req GetDashboardReq
 		if !pos.InvestedAmount.IsZero() {
 			divResult, err := pnl.Div(pos.InvestedAmount)
 			if err != nil {
-				slog.Warn("failed to calculate PnL percent", "position_id", pos.ID, "error", err)
+				slog.Debug("failed to calculate PnL percent", "position_id", pos.ID, "error", err)
 			} else {
 				mulResult, err := divResult.Mul(domain.NewDecimalFromInt(100))
 				if err != nil {
-					slog.Warn("failed to calculate PnL percent", "position_id", pos.ID, "error", err)
+					slog.Debug("failed to calculate PnL percent", "position_id", pos.ID, "error", err)
 				} else {
 					pnlPercent, err = mulResult.Round(2)
 					if err != nil {
-						slog.Warn("failed to round PnL percent", "position_id", pos.ID, "error", err)
+						slog.Debug("failed to round PnL percent", "position_id", pos.ID, "error", err)
 						pnlPercent = domain.NewDecimalFromInt(0)
 					}
 				}
@@ -149,15 +149,15 @@ func (s *DashboardService) GetDashboard(ctx context.Context, req GetDashboardReq
 	if !totalInvested.IsZero() {
 		divResult, err := totalPnL.Div(totalInvested)
 		if err != nil {
-			slog.Warn("failed to calculate total PnL percent", "error", err)
+			slog.Debug("failed to calculate total PnL percent", "error", err)
 		} else {
 			mulResult, err := divResult.Mul(domain.NewDecimalFromInt(100))
 			if err != nil {
-				slog.Warn("failed to calculate total PnL percent", "error", err)
+				slog.Debug("failed to calculate total PnL percent", "error", err)
 			} else {
 				pnlPercent, err = mulResult.Round(2)
 				if err != nil {
-					slog.Warn("failed to round total PnL percent", "error", err)
+					slog.Debug("failed to round total PnL percent", "error", err)
 					pnlPercent = domain.NewDecimalFromInt(0)
 				}
 			}
@@ -272,7 +272,7 @@ func (s *DashboardService) calculateBySector(positions []domain.PositionDashboar
 	for _, pos := range positions {
 		sector := pos.Sector
 		if sector == "" {
-			sector = "Unknown"
+			sector = "N/A"
 		}
 		existing := sectorMap[sector]
 		newVal, err := existing.Add(pos.CurrentValue)
