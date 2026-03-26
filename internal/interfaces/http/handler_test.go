@@ -961,7 +961,7 @@ func TestDashboardPageRoutes(t *testing.T) {
 				t.Fatalf("expected dashboard title in response body")
 			}
 
-			if !strings.Contains(body, "/api/v1/dashboard?sparklines=7") {
+			if !strings.Contains(body, "api/v1/dashboard?sparklines=7") {
 				t.Fatalf("expected dashboard API bootstrap URL in response body")
 			}
 		})

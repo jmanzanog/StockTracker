@@ -281,7 +281,7 @@
   <script>
     // Bug 2 fix: use 7d sparklines by default to avoid large payload without server-side downsampling.
     // 30d sparklines can still be requested by changing this value if needed.
-    const dashboardURL = "/api/v1/dashboard?sparklines=7";
+    const dashboardURL = new URL("api/v1/dashboard?sparklines=7", window.location.href).toString();
 
     // Escape < > & " for safe insertion into textContent and attribute context.
     const esc = s => String(s)
