@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stock Tracker Dashboard</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f1e8;
+      --panel: rgba(255, 252, 246, 0.92);
+      --panel-strong: #fffdf8;
+      --ink: #1f2933;
+      --muted: #5b6b79;
+      --line: rgba(56, 73, 89, 0.12);
+      --accent: #0f766e;
+      --accent-soft: rgba(15, 118, 110, 0.12);
+      --positive: #0f9f6e;
+      --negative: #c2410c;
+      --shadow: 0 18px 50px rgba(59, 41, 18, 0.08);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 30%),
+        radial-gradient(circle at top right, rgba(180, 83, 9, 0.14), transparent 28%),
+        linear-gradient(180deg, #f8f3ea 0%, var(--bg) 100%);
+      min-height: 100vh;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    .hero {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-end;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow, .meta, .empty, .error, .loading, th, .allocation-label {
+      color: var(--muted);
+    }
+
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-size: 0.74rem;
+      margin: 0 0 8px;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2rem, 5vw, 3.8rem);
+      line-height: 0.96;
+      max-width: 10ch;
+    }
+
+    .meta {
+      font-size: 0.95rem;
+      text-align: right;
+      max-width: 26ch;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .summary-grid {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      margin-bottom: 18px;
+    }
+
+    .alloc-grid {
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      margin-bottom: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .card, .alloc-card, .table-card {
+      padding: 20px;
+    }
+
+    .card-label, .panel-title {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin: 0 0 12px;
+    }
+
+    .card-value {
+      font-size: clamp(1.8rem, 3vw, 2.4rem);
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      margin: 0;
+    }
+
+    .card-subvalue {
+      margin-top: 10px;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    .positive { color: var(--positive); }
+    .negative { color: var(--negative); }
+
+    .allocation-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .allocation-row {
+      display: grid;
+      gap: 6px;
+    }
+
+    .allocation-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: baseline;
+    }
+
+    .allocation-label {
+      font-weight: 600;
+    }
+
+    .allocation-value {
+      font-variant-numeric: tabular-nums;
+      font-size: 0.92rem;
+    }
+
+    .allocation-bar {
+      height: 8px;
+      width: 100%;
+      border-radius: 999px;
+      background: rgba(56, 73, 89, 0.08);
+      overflow: hidden;
+    }
+
+    .allocation-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #0f766e 0%, #d97706 100%);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+    }
+
+    th, td {
+      padding: 14px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    td {
+      font-size: 0.96rem;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .symbol {
+      font-weight: 700;
+    }
+
+    .name {
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: 0.88rem;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+
+    .sparkline {
+      width: 110px;
+      height: 38px;
+      display: inline-block;
+    }
+
+    .sparkline svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .sparkline-empty {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .empty, .error, .loading {
+      padding: 18px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.56);
+      border: 1px dashed var(--line);
+    }
+
+    .error {
+      color: var(--negative);
+      border-style: solid;
+      background: rgba(194, 65, 12, 0.08);
+    }
+
+    @media (max-width: 720px) {
+      .page { width: min(100% - 20px, 1180px); padding-top: 20px; }
+      .hero { align-items: flex-start; }
+      .meta { text-align: left; }
+      .card, .alloc-card, .table-card { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Portfolio dashboard</p>
+        <h1>Stock Tracker</h1>
+      </div>
+      <div class="meta" id="meta">Loading dashboard data…</div>
+    </section>
+
+    <section class="grid summary-grid" id="summary"></section>
+    <section class="grid alloc-grid" id="allocations"></section>
+    <section class="panel table-card">
+      <p class="panel-title">Positions</p>
+      <div id="positions"></div>
+    </section>
+  </main>
+
+  <script>
+    const dashboardURL = "/api/v1/dashboard?sparklines=30";
+
+    const decimal = value => {
+      const num = Number(value);
+      if (Number.isNaN(num)) return value;
+      return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(num);
+    };
+
+    const money = (value, currency) => {
+      const num = Number(value);
+      if (Number.isNaN(num)) return value;
+      if (!currency) return decimal(value);
+
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency,
+          maximumFractionDigits: 2
+        }).format(num);
+      } catch {
+        return `${decimal(value)} ${currency}`;
+      }
+    };
+
+    const percent = value => {
+      const num = Number(value);
+      if (Number.isNaN(num)) return value;
+      return `${num.toFixed(2)}%`;
+    };
+
+    const pnlClass = value => Number(value) >= 0 ? "positive" : "negative";
+
+    const pickSparkline = position => {
+      if (!position.sparklines) return [];
+      if (position.sparklines["30d"] && position.sparklines["30d"].length) return position.sparklines["30d"];
+      const first = Object.values(position.sparklines).find(points => Array.isArray(points) && points.length);
+      return first || [];
+    };
+
+    const renderSparkline = points => {
+      if (!points.length) return '<span class="sparkline-empty">No trend</span>';
+
+      const values = points.map(point => Number(point.price)).filter(value => !Number.isNaN(value));
+      if (!values.length) return '<span class="sparkline-empty">No trend</span>';
+
+      const width = 110;
+      const height = 38;
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const range = max - min || 1;
+      const step = values.length > 1 ? width / (values.length - 1) : width;
+      const coords = values.map((value, index) => {
+        const x = index * step;
+        const y = height - ((value - min) / range) * (height - 4) - 2;
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+      }).join(" ");
+
+      return `
+        <span class="sparkline" aria-label="30 day price trend">
+          <svg viewBox="0 0 ${width} ${height}" role="img">
+            <polyline fill="none" stroke="rgba(15,118,110,0.18)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" points="${coords}"></polyline>
+            <polyline fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${coords}"></polyline>
+          </svg>
+        </span>
+      `;
+    };
+
+    const card = (label, value, subvalue, cls = "") => `
+      <article class="panel card">
+        <p class="card-label">${label}</p>
+        <p class="card-value ${cls}">${value}</p>
+        <div class="card-subvalue">${subvalue}</div>
+      </article>
+    `;
+
+    const renderAllocations = (title, items, key) => `
+      <article class="panel alloc-card">
+        <p class="panel-title">${title}</p>
+        <div class="allocation-list">
+          ${items.length ? items
+            .slice()
+            .sort((a, b) => Number(b.percent) - Number(a.percent))
+            .map(item => `
+              <div class="allocation-row">
+                <div class="allocation-head">
+                  <span class="allocation-label">${item[key] || "N/A"}</span>
+                  <span class="allocation-value">${key === "currency" ? money(item.total_value, item.currency) : decimal(item.total_value)} · ${percent(item.percent)}</span>
+                </div>
+                <div class="allocation-bar">
+                  <div class="allocation-fill" style="width: ${Math.min(Number(item.percent) || 0, 100)}%"></div>
+                </div>
+              </div>
+            `).join("")
+          : '<div class="empty">No allocation data yet.</div>'}
+        </div>
+      </article>
+    `;
+
+    const renderPositions = positions => {
+      if (!positions.length) {
+        return '<div class="empty">No positions yet. Add holdings through the API to populate the dashboard.</div>';
+      }
+
+      const rows = positions.map(position => `
+        <tr>
+          <td>
+            <div class="symbol">${position.symbol || position.isin}</div>
+            <div class="name">${position.name || "Unnamed instrument"}</div>
+          </td>
+          <td>${position.currency}</td>
+          <td><span class="pill">${position.type || "n/a"}</span></td>
+          <td>${position.sector || "N/A"}</td>
+          <td>${decimal(position.quantity)}</td>
+          <td>${money(position.current_price, position.currency)}</td>
+          <td>${money(position.current_value, position.currency)}</td>
+          <td>${money(position.invested_amount, position.currency)}</td>
+          <td class="${pnlClass(position.pnl)}">${money(position.pnl, position.currency)}<br><span class="name ${pnlClass(position.pnl_percent)}">${percent(position.pnl_percent)}</span></td>
+          <td>${renderSparkline(pickSparkline(position))}</td>
+        </tr>
+      `).join("");
+
+      return `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Position</th>
+                <th>CCY</th>
+                <th>Type</th>
+                <th>Sector</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Value</th>
+                <th>Invested</th>
+                <th>P/L</th>
+                <th>Trend</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    };
+
+    const setError = message => {
+      document.getElementById("meta").textContent = "Dashboard unavailable";
+      document.getElementById("summary").innerHTML = `<div class="error">${message}</div>`;
+      document.getElementById("allocations").innerHTML = "";
+      document.getElementById("positions").innerHTML = "";
+    };
+
+    const render = data => {
+      const generated = data.generated_at ? new Date(data.generated_at) : null;
+      document.getElementById("meta").textContent = generated && !Number.isNaN(generated.getTime())
+        ? `Portfolio ${data.portfolio_id || "default"} · Updated ${generated.toLocaleString()}`
+        : `Portfolio ${data.portfolio_id || "default"}`;
+
+      document.getElementById("summary").innerHTML = [
+        card("Total value", decimal(data.total_value), "Current market value"),
+        card("Invested", decimal(data.total_invested), "Net capital deployed"),
+        card("Profit / loss", decimal(data.total_pnl), `${percent(data.pnl_percent)} overall`, pnlClass(data.total_pnl)),
+        card("Positions", String((data.positions || []).length), "Tracked holdings")
+      ].join("");
+
+      document.getElementById("allocations").innerHTML = [
+        renderAllocations("By currency", data.by_currency || [], "currency"),
+        renderAllocations("By type", data.by_type || [], "type"),
+        renderAllocations("By sector", data.by_sector || [], "sector")
+      ].join("");
+
+      document.getElementById("positions").innerHTML = renderPositions(data.positions || []);
+    };
+
+    document.getElementById("summary").innerHTML = '<div class="loading">Loading summary…</div>';
+    document.getElementById("allocations").innerHTML = '<div class="loading">Loading allocations…</div>';
+    document.getElementById("positions").innerHTML = '<div class="loading">Loading positions…</div>';
+
+    fetch(dashboardURL, { headers: { "Accept": "application/json" } })
+      .then(response => {
+        if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+        return response.json();
+      })
+      .then(render)
+      .catch(error => {
+        setError(`Failed to load ${dashboardURL}: ${error.message}`);
+      });
+  </script>
+</body>
+</html>

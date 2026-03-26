@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jmanzanog/stock-tracker/internal/application"
 	"github.com/jmanzanog/stock-tracker/internal/domain"
+	"github.com/jmanzanog/stock-tracker/internal/interfaces/http/web"
 )
 
 // PortfolioService defines the interface for portfolio operations
@@ -262,6 +263,17 @@ func (h *Handler) GetDashboard(c *gin.Context) {
 
 	response := toDashboardResponse(snapshot)
 	c.JSON(http.StatusOK, response)
+}
+
+func (h *Handler) DashboardPage(c *gin.Context) {
+	content, err := web.DashboardPage()
+	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "Failed to load dashboard page", "error", err)
+		c.String(http.StatusInternalServerError, "dashboard page unavailable")
+		return
+	}
+
+	c.Data(http.StatusOK, "text/html; charset=utf-8", content)
 }
 
 func toDashboardResponse(s *domain.DashboardSnapshot) DashboardResponse {
