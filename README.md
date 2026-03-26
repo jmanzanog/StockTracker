@@ -241,6 +241,7 @@ The Go app also serves a lightweight browser dashboard on the root route.
 1. Start the application.
 2. Open `http://localhost:8080/` in your browser.
 3. The page fetches data from `GET /api/v1/dashboard` and renders summary cards, allocation breakdowns, positions, and mini trend sparklines.
+   The page requests 7-day sparklines by default to keep the payload small; this can be changed by editing the `sparklines` URL parameter in the page's JavaScript if needed.
 
 
 

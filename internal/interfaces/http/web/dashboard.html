@@ -248,6 +248,10 @@
       background: rgba(194, 65, 12, 0.08);
     }
 
+    .loading {
+      padding: 18px;
+    }
+
     @media (max-width: 720px) {
       .page { width: min(100% - 20px, 1180px); padding-top: 20px; }
       .hero { align-items: flex-start; }
@@ -275,49 +279,75 @@
   </main>
 
   <script>
-    const dashboardURL = "/api/v1/dashboard?sparklines=30";
+    // Bug 2 fix: use 7d sparklines by default to avoid large payload without server-side downsampling.
+    // 30d sparklines can still be requested by changing this value if needed.
+    const dashboardURL = "/api/v1/dashboard?sparklines=7";
 
-    const decimal = value => {
-      const num = Number(value);
-      if (Number.isNaN(num)) return value;
-      return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(num);
+    // Escape < > & " for safe insertion into textContent and attribute context.
+    const esc = s => String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+    // Parse a decimal string to a number, safely returning null on failure.
+    // Keeps values as strings for display to preserve precision;
+    // only converts to Number where numeric comparison is unavoidable.
+    const toNum = value => {
+      const n = Number(value);
+      return Number.isNaN(n) ? null : n;
     };
 
-    const money = (value, currency) => {
-      const num = Number(value);
-      if (Number.isNaN(num)) return value;
-      if (!currency) return decimal(value);
+    // Format a numeric value as decimal string, or return raw value on failure.
+    // Uses backend-provided strings directly to avoid floating-point rounding.
+    const fmt = value => {
+      const n = toNum(value);
+      if (n === null) return String(value);
+      return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n);
+    };
 
+    // Format a numeric value with currency.
+    const fmtMoney = (value, currency) => {
+      const n = toNum(value);
+      if (n === null) return String(value);
+      if (!currency) return fmt(value);
       try {
         return new Intl.NumberFormat(undefined, {
           style: "currency",
           currency,
           maximumFractionDigits: 2
-        }).format(num);
+        }).format(n);
       } catch {
-        return `${decimal(value)} ${currency}`;
+        return `${fmt(value)} ${esc(currency)}`;
       }
     };
 
-    const percent = value => {
-      const num = Number(value);
-      if (Number.isNaN(num)) return value;
-      return `${num.toFixed(2)}%`;
+    // Format as percentage string from a backend-provided percent value.
+    const fmtPct = value => {
+      const n = toNum(value);
+      if (n === null) return String(value);
+      return `${n.toFixed(2)}%`;
     };
 
-    const pnlClass = value => Number(value) >= 0 ? "positive" : "negative";
+    const pnlClass = value => {
+      const n = toNum(value);
+      return n !== null && n >= 0 ? "positive" : "negative";
+    };
 
     const pickSparkline = position => {
       if (!position.sparklines) return [];
-      if (position.sparklines["30d"] && position.sparklines["30d"].length) return position.sparklines["30d"];
-      const first = Object.values(position.sparklines).find(points => Array.isArray(points) && points.length);
-      return first || [];
+      // Prefer the shortest available range to minimise payload; upgrade if needed.
+      for (const key of ["7d", "30d", "90d"]) {
+        const pts = position.sparklines[key];
+        if (Array.isArray(pts) && pts.length > 0) return pts;
+      }
+      return [];
     };
 
     const renderSparkline = points => {
       if (!points.length) return '<span class="sparkline-empty">No trend</span>';
 
-      const values = points.map(point => Number(point.price)).filter(value => !Number.isNaN(value));
+      const values = points.map(p => toNum(p.price)).filter(n => n !== null);
       if (!values.length) return '<span class="sparkline-empty">No trend</span>';
 
       const width = 110;
@@ -326,131 +356,259 @@
       const max = Math.max(...values);
       const range = max - min || 1;
       const step = values.length > 1 ? width / (values.length - 1) : width;
-      const coords = values.map((value, index) => {
-        const x = index * step;
-        const y = height - ((value - min) / range) * (height - 4) - 2;
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
+      const coords = values.map((v, i) => {
+        const x = (i * step).toFixed(2);
+        const y = (height - ((v - min) / range) * (height - 4) - 2).toFixed(2);
+        return `${x},${y}`;
       }).join(" ");
 
-      return `
-        <span class="sparkline" aria-label="30 day price trend">
-          <svg viewBox="0 0 ${width} ${height}" role="img">
-            <polyline fill="none" stroke="rgba(15,118,110,0.18)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" points="${coords}"></polyline>
-            <polyline fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${coords}"></polyline>
-          </svg>
-        </span>
-      `;
+      const label = `Price trend (${points.length} points)`;
+      return `<span class="sparkline" aria-label="${esc(label)}">` +
+        `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(label)}">` +
+        `<polyline fill="none" stroke="rgba(15,118,110,0.18)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" points="${coords}"></polyline>` +
+        `<polyline fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${coords}"></polyline>` +
+        `</svg></span>`;
     };
 
-    const card = (label, value, subvalue, cls = "") => `
-      <article class="panel card">
-        <p class="card-label">${label}</p>
-        <p class="card-value ${cls}">${value}</p>
-        <div class="card-subvalue">${subvalue}</div>
-      </article>
-    `;
+    // Build a summary card using DOM APIs so no HTML interpolation touches untrusted values.
+    const card = (label, value, subvalue, cls = "") => {
+      const article = document.createElement("article");
+      article.className = "panel card";
+      const labelEl = document.createElement("p");
+      labelEl.className = "card-label";
+      labelEl.textContent = label;
+      const valueEl = document.createElement("p");
+      valueEl.className = `card-value ${esc(cls)}`;
+      valueEl.textContent = value;
+      const subEl = document.createElement("div");
+      subEl.className = "card-subvalue";
+      subEl.textContent = subvalue;
+      article.appendChild(labelEl);
+      article.appendChild(valueEl);
+      article.appendChild(subEl);
+      return article;
+    };
 
-    const renderAllocations = (title, items, key) => `
-      <article class="panel alloc-card">
-        <p class="panel-title">${title}</p>
-        <div class="allocation-list">
-          ${items.length ? items
-            .slice()
-            .sort((a, b) => Number(b.percent) - Number(a.percent))
-            .map(item => `
-              <div class="allocation-row">
-                <div class="allocation-head">
-                  <span class="allocation-label">${item[key] || "N/A"}</span>
-                  <span class="allocation-value">${key === "currency" ? money(item.total_value, item.currency) : decimal(item.total_value)} · ${percent(item.percent)}</span>
-                </div>
-                <div class="allocation-bar">
-                  <div class="allocation-fill" style="width: ${Math.min(Number(item.percent) || 0, 100)}%"></div>
-                </div>
-              </div>
-            `).join("")
-          : '<div class="empty">No allocation data yet.</div>'}
-        </div>
-      </article>
-    `;
+    const renderAllocations = (title, items, key) => {
+      const article = document.createElement("article");
+      article.className = "panel alloc-card";
+      const titleEl = document.createElement("p");
+      titleEl.className = "panel-title";
+      titleEl.textContent = title;
+      article.appendChild(titleEl);
 
-    const renderPositions = positions => {
-      if (!positions.length) {
-        return '<div class="empty">No positions yet. Add holdings through the API to populate the dashboard.</div>';
+      const list = document.createElement("div");
+      list.className = "allocation-list";
+
+      if (items.length) {
+        const sorted = items.slice().sort((a, b) => {
+          const na = toNum(b.percent), nb = toNum(a.percent);
+          return (na ?? 0) - (nb ?? 0);
+        });
+        for (const item of sorted) {
+          const row = document.createElement("div");
+          row.className = "allocation-row";
+
+          const head = document.createElement("div");
+          head.className = "allocation-head";
+
+          const labelSpan = document.createElement("span");
+          labelSpan.className = "allocation-label";
+          labelSpan.textContent = item[key] || "N/A";
+
+          const valueSpan = document.createElement("span");
+          valueSpan.className = "allocation-value";
+          const displayVal = key === "currency" ? fmtMoney(item.total_value, item.currency) : fmt(item.total_value);
+          valueSpan.textContent = `${displayVal} · ${fmtPct(item.percent)}`;
+
+          head.appendChild(labelSpan);
+          head.appendChild(valueSpan);
+
+          const bar = document.createElement("div");
+          bar.className = "allocation-bar";
+          const fill = document.createElement("div");
+          fill.className = "allocation-fill";
+          const pct = toNum(item.percent);
+          fill.style.width = `${Math.min(Math.max(pct ?? 0, 0), 100)}%`;
+
+          bar.appendChild(fill);
+          row.appendChild(head);
+          row.appendChild(bar);
+          list.appendChild(row);
+        }
+      } else {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "No allocation data yet.";
+        list.appendChild(empty);
       }
 
-      const rows = positions.map(position => `
-        <tr>
-          <td>
-            <div class="symbol">${position.symbol || position.isin}</div>
-            <div class="name">${position.name || "Unnamed instrument"}</div>
-          </td>
-          <td>${position.currency}</td>
-          <td><span class="pill">${position.type || "n/a"}</span></td>
-          <td>${position.sector || "N/A"}</td>
-          <td>${decimal(position.quantity)}</td>
-          <td>${money(position.current_price, position.currency)}</td>
-          <td>${money(position.current_value, position.currency)}</td>
-          <td>${money(position.invested_amount, position.currency)}</td>
-          <td class="${pnlClass(position.pnl)}">${money(position.pnl, position.currency)}<br><span class="name ${pnlClass(position.pnl_percent)}">${percent(position.pnl_percent)}</span></td>
-          <td>${renderSparkline(pickSparkline(position))}</td>
-        </tr>
-      `).join("");
+      article.appendChild(list);
+      return article;
+    };
 
-      return `
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Position</th>
-                <th>CCY</th>
-                <th>Type</th>
-                <th>Sector</th>
-                <th>Qty</th>
-                <th>Price</th>
-                <th>Value</th>
-                <th>Invested</th>
-                <th>P/L</th>
-                <th>Trend</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      `;
+    const renderPositions = positions => {
+      const container = document.createElement("div");
+
+      if (!positions.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "No positions yet. Add holdings through the API to populate the dashboard.";
+        container.appendChild(empty);
+        return container;
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "table-wrap";
+
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      for (const th of ["Position", "CCY", "Type", "Sector", "Qty", "Price", "Value", "Invested", "P/L", "Trend"]) {
+        const thEl = document.createElement("th");
+        thEl.textContent = th;
+        headerRow.appendChild(thEl);
+      }
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      for (const position of positions) {
+        const tr = document.createElement("tr");
+
+        // Position cell: symbol + name, both use textContent (safe from XSS)
+        const posTd = document.createElement("td");
+        const symDiv = document.createElement("div");
+        symDiv.className = "symbol";
+        symDiv.textContent = position.symbol || position.isin || "";
+        const nameDiv = document.createElement("div");
+        nameDiv.className = "name";
+        nameDiv.textContent = position.name || "Unnamed instrument";
+        posTd.appendChild(symDiv);
+        posTd.appendChild(nameDiv);
+        tr.appendChild(posTd);
+
+        // CCY
+        const ccyTd = document.createElement("td");
+        ccyTd.textContent = position.currency || "";
+        tr.appendChild(ccyTd);
+
+        // Type pill — safe because type is an enum string, not user-supplied HTML
+        const typeTd = document.createElement("td");
+        const typeSpan = document.createElement("span");
+        typeSpan.className = "pill";
+        typeSpan.textContent = position.type || "n/a";
+        typeTd.appendChild(typeSpan);
+        tr.appendChild(typeTd);
+
+        // Sector
+        const secTd = document.createElement("td");
+        secTd.textContent = position.sector || "N/A";
+        tr.appendChild(secTd);
+
+        // Quantity
+        const qtyTd = document.createElement("td");
+        qtyTd.textContent = fmt(position.quantity);
+        tr.appendChild(qtyTd);
+
+        // Current price
+        const priceTd = document.createElement("td");
+        priceTd.textContent = fmtMoney(position.current_price, position.currency);
+        tr.appendChild(priceTd);
+
+        // Current value
+        const valueTd = document.createElement("td");
+        valueTd.textContent = fmtMoney(position.current_value, position.currency);
+        tr.appendChild(valueTd);
+
+        // Invested
+        const invTd = document.createElement("td");
+        invTd.textContent = fmtMoney(position.invested_amount, position.currency);
+        tr.appendChild(invTd);
+
+        // P/L
+        const pnlTd = document.createElement("td");
+        const pnlVal = fmtMoney(position.pnl, position.currency);
+        const pnlValDiv = document.createElement("span");
+        pnlValDiv.textContent = pnlVal;
+        pnlValDiv.className = esc(pnlClass(position.pnl));
+        const pnlPct = document.createElement("span");
+        pnlPct.className = `name ${esc(pnlClass(position.pnl_percent))}`;
+        pnlPct.textContent = fmtPct(position.pnl_percent);
+        pnlTd.appendChild(pnlValDiv);
+        pnlTd.appendChild(document.createElement("br"));
+        pnlTd.appendChild(pnlPct);
+        tr.appendChild(pnlTd);
+
+        // Trend sparkline
+        const trendTd = document.createElement("td");
+        trendTd.innerHTML = renderSparkline(pickSparkline(position));
+        tr.appendChild(trendTd);
+
+        tbody.appendChild(tr);
+      }
+
+      table.appendChild(tbody);
+      wrapper.appendChild(table);
+      container.appendChild(wrapper);
+      return container;
     };
 
     const setError = message => {
       document.getElementById("meta").textContent = "Dashboard unavailable";
-      document.getElementById("summary").innerHTML = `<div class="error">${message}</div>`;
-      document.getElementById("allocations").innerHTML = "";
-      document.getElementById("positions").innerHTML = "";
+      const summary = document.getElementById("summary");
+      summary.textContent = "";
+      const errDiv = document.createElement("div");
+      errDiv.className = "error";
+      errDiv.textContent = message; // textContent prevents XSS
+      summary.appendChild(errDiv);
+      document.getElementById("allocations").textContent = "";
+      document.getElementById("positions").textContent = "";
     };
 
     const render = data => {
       const generated = data.generated_at ? new Date(data.generated_at) : null;
-      document.getElementById("meta").textContent = generated && !Number.isNaN(generated.getTime())
-        ? `Portfolio ${data.portfolio_id || "default"} · Updated ${generated.toLocaleString()}`
-        : `Portfolio ${data.portfolio_id || "default"}`;
+      const meta = document.getElementById("meta");
+      if (generated && !Number.isNaN(generated.getTime())) {
+        const id = data.portfolio_id || "default";
+        const dateStr = generated.toLocaleString();
+        meta.textContent = `Portfolio ${id} · Updated ${dateStr}`;
+      } else {
+        meta.textContent = `Portfolio ${data.portfolio_id || "default"}`;
+      }
 
-      document.getElementById("summary").innerHTML = [
-        card("Total value", decimal(data.total_value), "Current market value"),
-        card("Invested", decimal(data.total_invested), "Net capital deployed"),
-        card("Profit / loss", decimal(data.total_pnl), `${percent(data.pnl_percent)} overall`, pnlClass(data.total_pnl)),
-        card("Positions", String((data.positions || []).length), "Tracked holdings")
-      ].join("");
+      const summary = document.getElementById("summary");
+      summary.textContent = "";
+      summary.appendChild(card("Total value", fmt(data.total_value), "Current market value"));
+      const pnlCls = pnlClass(data.total_pnl);
+      summary.appendChild(card("Invested", fmt(data.total_invested), "Net capital deployed"));
+      summary.appendChild(card("Profit / loss", fmt(data.total_pnl), `${fmtPct(data.pnl_percent)} overall`, pnlCls));
+      summary.appendChild(card("Positions", String((data.positions || []).length), "Tracked holdings"));
 
-      document.getElementById("allocations").innerHTML = [
-        renderAllocations("By currency", data.by_currency || [], "currency"),
-        renderAllocations("By type", data.by_type || [], "type"),
-        renderAllocations("By sector", data.by_sector || [], "sector")
-      ].join("");
+      const allocations = document.getElementById("allocations");
+      allocations.textContent = "";
+      allocations.appendChild(renderAllocations("By currency", data.by_currency || [], "currency"));
+      allocations.appendChild(renderAllocations("By type", data.by_type || [], "type"));
+      allocations.appendChild(renderAllocations("By sector", data.by_sector || [], "sector"));
 
-      document.getElementById("positions").innerHTML = renderPositions(data.positions || []);
+      const positions = document.getElementById("positions");
+      positions.textContent = "";
+      positions.appendChild(renderPositions(data.positions || []));
     };
 
-    document.getElementById("summary").innerHTML = '<div class="loading">Loading summary…</div>';
-    document.getElementById("allocations").innerHTML = '<div class="loading">Loading allocations…</div>';
-    document.getElementById("positions").innerHTML = '<div class="loading">Loading positions…</div>';
+    const loading = document.createElement("div");
+    loading.className = "loading";
+    loading.textContent = "Loading summary…";
+    const loadingAlloc = document.createElement("div");
+    loadingAlloc.className = "loading";
+    loadingAlloc.textContent = "Loading allocations…";
+    const loadingPos = document.createElement("div");
+    loadingPos.className = "loading";
+    loadingPos.textContent = "Loading positions…";
+
+    document.getElementById("summary").appendChild(loading);
+    document.getElementById("allocations").appendChild(loadingAlloc);
+    document.getElementById("positions").appendChild(loadingPos);
 
     fetch(dashboardURL, { headers: { "Accept": "application/json" } })
       .then(response => {
@@ -459,7 +617,7 @@
       })
       .then(render)
       .catch(error => {
-        setError(`Failed to load ${dashboardURL}: ${error.message}`);
+        setError(`Failed to load dashboard: ${error.message}`);
       });
   </script>
 </body>
