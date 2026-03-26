@@ -345,10 +345,20 @@
     };
 
     const renderSparkline = points => {
-      if (!points.length) return '<span class="sparkline-empty">No trend</span>';
+      const container = document.createElement("span");
+
+      if (!points.length) {
+        container.className = "sparkline-empty";
+        container.textContent = "No trend";
+        return container;
+      }
 
       const values = points.map(p => toNum(p.price)).filter(n => n !== null);
-      if (!values.length) return '<span class="sparkline-empty">No trend</span>';
+      if (!values.length) {
+        container.className = "sparkline-empty";
+        container.textContent = "No trend";
+        return container;
+      }
 
       const width = 110;
       const height = 38;
@@ -363,11 +373,34 @@
       }).join(" ");
 
       const label = `Price trend (${points.length} points)`;
-      return `<span class="sparkline" aria-label="${esc(label)}">` +
-        `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(label)}">` +
-        `<polyline fill="none" stroke="rgba(15,118,110,0.18)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" points="${coords}"></polyline>` +
-        `<polyline fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${coords}"></polyline>` +
-        `</svg></span>`;
+      container.className = "sparkline";
+      container.setAttribute("aria-label", label);
+
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", label);
+
+      const bg = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      bg.setAttribute("fill", "none");
+      bg.setAttribute("stroke", "rgba(15,118,110,0.18)");
+      bg.setAttribute("stroke-width", "10");
+      bg.setAttribute("stroke-linecap", "round");
+      bg.setAttribute("stroke-linejoin", "round");
+      bg.setAttribute("points", coords);
+
+      const fg = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      fg.setAttribute("fill", "none");
+      fg.setAttribute("stroke", "#0f766e");
+      fg.setAttribute("stroke-width", "2.5");
+      fg.setAttribute("stroke-linecap", "round");
+      fg.setAttribute("stroke-linejoin", "round");
+      fg.setAttribute("points", coords);
+
+      svg.appendChild(bg);
+      svg.appendChild(fg);
+      container.appendChild(svg);
+      return container;
     };
 
     // Build a summary card using DOM APIs so no HTML interpolation touches untrusted values.
@@ -542,7 +575,7 @@
 
         // Trend sparkline
         const trendTd = document.createElement("td");
-        trendTd.innerHTML = renderSparkline(pickSparkline(position));
+        trendTd.appendChild(renderSparkline(pickSparkline(position)));
         tr.appendChild(trendTd);
 
         tbody.appendChild(tr);
