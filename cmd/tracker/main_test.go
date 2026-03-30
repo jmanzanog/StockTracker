@@ -157,6 +157,18 @@ func TestBuildServer(t *testing.T) {
 	if server.Handler == nil {
 		t.Error("server handler is nil")
 	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	server.Handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected dashboard page status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	if got := w.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+		t.Fatalf("expected html content type, got %q", got)
+	}
 }
 
 func TestCreateMarketDataClient(t *testing.T) {

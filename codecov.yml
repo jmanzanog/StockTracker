@@ -1,0 +1,11 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+    patch:
+      default:
+        target: 95%
+ignore:
+  - "README.md"
+  - "internal/interfaces/http/web/dashboard.html"

@@ -5,6 +5,8 @@ import (
 )
 
 func SetupRoutes(router *gin.Engine, handler *Handler) {
+	router.GET("/", handler.DashboardPage)
+
 	api := router.Group("/api/v1")
 	{
 		api.POST("/positions", handler.AddPosition)

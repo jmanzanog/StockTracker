@@ -234,6 +234,17 @@ GET /api/v1/dashboard?sparklines=7,30,90
 - Price history is retained for 90 days and automatically cleaned up
 - Sector field may be "N/A" if the instrument provider doesn't supply sector information
 
+## Web Dashboard
+
+The Go app also serves a lightweight browser dashboard on the root route.
+
+1. Start the application.
+2. Open `http://localhost:8080/` in your browser.
+3. The page fetches data from `GET /api/v1/dashboard` and renders summary cards, allocation breakdowns, positions, and mini trend sparklines.
+   The page requests 7-day sparklines by default to keep the payload small; this can be changed by editing the `sparklines` URL parameter in the page's JavaScript if needed.
+
+
+
 ## Configuration
 
 Environment variables (see `.env.example`):
