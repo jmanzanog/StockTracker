@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -930,6 +931,40 @@ func TestGetDashboard_NoDashboardService(t *testing.T) {
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, w.Code)
+	}
+}
+
+func TestDashboardPageRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	mockService := &MockPortfolioService{}
+	handler := NewHandler(mockService)
+	router := setupRouter(handler)
+
+	for _, path := range []string{"/"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+			}
+
+			if got := w.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+				t.Fatalf("expected html content type, got %q", got)
+			}
+
+			body := w.Body.String()
+			if !strings.Contains(body, "Stock Tracker Dashboard") {
+				t.Fatalf("expected dashboard title in response body")
+			}
+
+			if !strings.Contains(body, "api/v1/dashboard?sparklines=7") {
+				t.Fatalf("expected dashboard API bootstrap URL in response body")
+			}
+		})
 	}
 }
 
