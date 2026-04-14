@@ -7,7 +7,7 @@
 #   bash scripts/verify.sh
 #
 # Or via Docker (for consistent environment):
-#   docker run --rm -v "$(pwd):/project" -w /project golang:1.26.1 \
+#   docker run --rm -v "$(pwd):/project" -w /project golang:1.26.2 \
 #     bash /project/scripts/verify.sh
 #
 set -euo pipefail
@@ -196,7 +196,7 @@ if go test ${TEST_ARGS} ./... 2>&1; then
 else
   if [[ $DOCKER_AVAILABLE == 0 ]]; then
     skip "Tests failed — likely because Docker is not available for testcontainers"
-    skip "Run 'docker run -v \$(pwd):/project -w /project golang:1.26.1 bash scripts/verify.sh' natively"
+    skip "Run 'docker run -v \$(pwd):/project -w /project golang:1.26.2 bash scripts/verify.sh' natively"
     skip "CI will run the full suite correctly. This environment lacks Docker."
     info "If you see test failures, verify they are not pre-existing by checking CI runs."
   else
