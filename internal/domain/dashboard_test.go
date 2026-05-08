@@ -202,4 +202,24 @@ func TestDashboardSnapshot_CalculateWarnings(t *testing.T) {
 		// This is expected behavior
 		t.Logf("Warnings for diversified portfolio: %v", snapshot.Warnings)
 	})
+
+	t.Run("toNum handles invalid input", func(t *testing.T) {
+		// Test toNum with invalid input to cover error path
+		result := toNum("invalid")
+		if result != nil {
+			t.Errorf("expected nil for invalid input, got %v", result)
+		}
+	})
+
+	t.Run("no warnings with empty allocations", func(t *testing.T) {
+		snapshot := &DashboardSnapshot{
+			TotalValue: NewDecimalFromInt(1000),
+			BySector:   []SectorAllocation{},
+			ByType:     []TypeAllocation{},
+		}
+		snapshot.CalculateAllocations()
+		if len(snapshot.Warnings) != 0 {
+			t.Errorf("expected no warnings with empty allocations, got %v", snapshot.Warnings)
+		}
+	})
 }
