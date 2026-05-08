@@ -271,6 +271,7 @@
     </section>
 
     <section class="grid summary-grid" id="summary"></section>
+    <section class="grid alloc-grid" id="warnings"></section>
     <section class="grid alloc-grid" id="allocations"></section>
     <section class="panel table-card">
       <p class="panel-title">Positions</p>
@@ -420,6 +421,43 @@
       article.appendChild(valueEl);
       article.appendChild(subEl);
       return article;
+    };
+
+    const renderWarnings = warnings => {
+      const container = document.getElementById("warnings");
+      container.textContent = "";
+      
+      if (!warnings || warnings.length === 0) {
+        return;
+      }
+      
+      const article = document.createElement("article");
+      article.className = "panel alloc-card";
+      article.style.background = "rgba(194, 65, 12, 0.08)";
+      article.style.borderColor = "rgba(194, 65, 12, 0.24)";
+      
+      const titleEl = document.createElement("p");
+      titleEl.className = "panel-title";
+      titleEl.style.color = "var(--negative)";
+      titleEl.textContent = "⚠️ Concentration Warnings";
+      article.appendChild(titleEl);
+      
+      const list = document.createElement("div");
+      list.className = "allocation-list";
+      
+      for (const warning of warnings) {
+        const row = document.createElement("div");
+        row.className = "allocation-row";
+        const labelSpan = document.createElement("span");
+        labelSpan.className = "allocation-label";
+        labelSpan.style.color = "var(--negative)";
+        labelSpan.textContent = warning;
+        row.appendChild(labelSpan);
+        list.appendChild(row);
+      }
+      
+      article.appendChild(list);
+      container.appendChild(article);
     };
 
     const renderAllocations = (title, items, key) => {
@@ -618,6 +656,9 @@
       summary.appendChild(card("Profit / loss", fmt(data.total_pnl), `${fmtPct(data.pnl_percent)} overall`, pnlCls));
       summary.appendChild(card("Positions", String((data.positions || []).length), "Tracked holdings"));
 
+      // Render warnings first if any
+      renderWarnings(data.warnings || []);
+      
       const allocations = document.getElementById("allocations");
       allocations.textContent = "";
       allocations.appendChild(renderAllocations("By currency", data.by_currency || [], "currency"));

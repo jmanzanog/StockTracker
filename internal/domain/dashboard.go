@@ -1,6 +1,10 @@
 package domain
 
-import "time"
+import (
+	"fmt"
+	"strconv"
+	"time"
+)
 
 type DashboardSnapshot struct {
 	PortfolioID   string               `json:"portfolio_id"`
@@ -12,6 +16,7 @@ type DashboardSnapshot struct {
 	ByCurrency    []CurrencyAllocation `json:"by_currency"`
 	ByType        []TypeAllocation     `json:"by_type"`
 	BySector      []SectorAllocation   `json:"by_sector"`
+	Warnings      []string             `json:"warnings"`
 	Positions     []PositionDashboard  `json:"positions"`
 	allocated     bool                 `json:"-"`
 }
@@ -23,6 +28,7 @@ func (d *DashboardSnapshot) CalculateAllocations() {
 	d.ByCurrency = d.calculateByCurrency()
 	d.ByType = d.calculateByType()
 	d.BySector = d.calculateBySector()
+	d.Warnings = d.calculateWarnings()
 	d.allocated = true
 }
 
@@ -106,6 +112,37 @@ func (d *DashboardSnapshot) calculateBySector() []SectorAllocation {
 		})
 	}
 	return allocations
+}
+
+func (d *DashboardSnapshot) calculateWarnings() []string {
+	warnings := make([]string, 0)
+	
+	// Check sector concentration (>40% threshold)
+	for _, alloc := range d.BySector {
+		pct := toNum(alloc.Percent.String())
+		if pct != nil && *pct > 40 {
+			warnings = append(warnings, fmt.Sprintf("Sector %s exceeds 40%% concentration (%.2f%%)", alloc.Sector, *pct))
+		}
+	}
+	
+	// Check type concentration (>40% threshold)
+	for _, alloc := range d.ByType {
+		pct := toNum(alloc.Percent.String())
+		if pct != nil && *pct > 40 {
+			warnings = append(warnings, fmt.Sprintf("Type %s exceeds 40%% concentration (%.2f%%)", alloc.Type, *pct))
+		}
+	}
+	
+	return warnings
+}
+
+// toNum converts a string to float64, returns nil on failure
+func toNum(s string) *float64 {
+	n, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return nil
+	}
+	return &n
 }
 
 type CurrencyAllocation struct {
