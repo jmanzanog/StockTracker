@@ -116,7 +116,7 @@ func (d *DashboardSnapshot) calculateBySector() []SectorAllocation {
 
 func (d *DashboardSnapshot) calculateWarnings() []string {
 	warnings := make([]string, 0)
-	
+
 	// Check sector concentration (>40% threshold)
 	for _, alloc := range d.BySector {
 		pct := toNum(alloc.Percent.String())
@@ -124,7 +124,7 @@ func (d *DashboardSnapshot) calculateWarnings() []string {
 			warnings = append(warnings, fmt.Sprintf("Sector %s exceeds 40%% concentration (%.2f%%)", alloc.Sector, *pct))
 		}
 	}
-	
+
 	// Check type concentration (>40% threshold)
 	for _, alloc := range d.ByType {
 		pct := toNum(alloc.Percent.String())
@@ -132,7 +132,7 @@ func (d *DashboardSnapshot) calculateWarnings() []string {
 			warnings = append(warnings, fmt.Sprintf("Type %s exceeds 40%% concentration (%.2f%%)", alloc.Type, *pct))
 		}
 	}
-	
+
 	return warnings
 }
 
