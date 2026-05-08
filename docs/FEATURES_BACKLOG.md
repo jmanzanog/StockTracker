@@ -12,10 +12,12 @@
 |---|------|--------|-----|-------|
 | 9 | Dashboard Web | ✅ **COMPLETADO** | #58 | 2026-03-30 |
 | 8 | Asignación por Sector | ✅ **COMPLETADO** | #69 | 2026-05-08 |
+| 2 | Ventas Parciales | ✅ **COMPLETADO** | #72 | 2026-05-08 |
 
 **Detalles:**
 - **Dashboard Web (#58):** Endpoint `/dashboard` con UI ligera, sparklines, tabla de posiciones y breakdown de asignación. Auto-hosted, cero dependencias frontend.
 - **Asignación por Sector (#69):** Breakdown por tipo (ETF/Stock) y sector, con warnings automáticos cuando alguna concentración excede 40%.
+- **Ventas Parciales (#72):** Endpoint `POST /api/v1/positions/:id/sell` para vender parcial o totalmente posiciones. Calcula P/L proporcional, actualiza invested amount restante, y registra SaleTransaction para auditoría.
 
 ---
 
@@ -25,7 +27,7 @@
 |---|------|---------|----------|--------|---------------|
 | ~~9~~ | ~~Dashboard Web~~ | ~~🔴 Alto~~ | ~~🟡 Medio~~ | ✅ **HECHO** (PR #58) | — |
 | ~~8~~ | ~~Asignación por Sector~~ | ~~🟢 Bajo~~ | ~~🟢 Bajo~~ | ✅ **HECHO** (PR #69) | — |
-| 2 | Ventas Parciales | 🔴 Alto | 🟡 Medio | ⬜ Pendiente | 🚨 Empezar aquí |
+| ~~2~~ | ~~Ventas Parciales~~ | ~~🔴 Alto~~ | ~~🟡 Medio~~ | ✅ **HECHO** (PR #72) | — |
 | 1 | Multi-Portfolio | 🔴 Alto | 🟡 Medio | ⬜ Pendiente | 🚨 Empezar aquí |
 | 3 | Historial de Transacciones | 🟡 Medio | 🟡 Medio | ⬜ Pendiente | 🔶 Segundo lote |
 | 4 | Multi-Currency | 🟡 Medio | 🟡 Medio | ⬜ Pendiente | 🔶 Segundo lote |
@@ -58,30 +60,39 @@
 
 ---
 
-### 2. 💸 Ventas Parciales (Partial Sell)
+### ~~2. 💸 Ventas Parciales (Partial Sell)~~ ✅ **COMPLETADO 2026-05-08**
 
-**Situación actual:** `RemovePosition` elimina toda la posición. No se puede vender el 50%.
+**Estado:** Implementado en PR #72.
 
-**Qué añade:** Al vender, especificar cantidad a vender. El sistema calcula P/L parcial, actualiza `InvestedAmount` y `Quantity` restantes, y guarda la transacción de venta.
+**Qué se implementó:**
+- ✅ Nuevo endpoint: `POST /api/v1/positions/:id/sell`
+- ✅ Modelo `SaleTransaction` para registro de auditoría
+- ✅ Método `Portfolio.SellPartial()` con validaciones
+- ✅ Cálculo proporcional de invested amount y P/L
+- ✅ Soporte para venta parcial y venta total (remove position)
+- ✅ 8 tests unitarios cubriendo edge cases
 
-**Valor:** Esta es la feature que más se extrañaría en uso real. Sin esto, el tracker es incompleto.
-
-**Detalles técnicos:**
-- Nuevo endpoint: `POST /api/v1/positions/:id/sell`
-- Body: `{ "quantity": "5", "price": "120.50" }`
-- Lógica en domain: dividir posición o cerrar si quantity == existing quantity
-- Validaciones: no vender más de lo que se tiene, precio no cero
-- **Nuevo dominio `SaleTransaction`** para guardar el registro
-- El `UpdatePrice` actual no sirve — hay que recalcular el `InvestedAmount` remaining proporcionalmente
-
-**Detalles de la lógica de split:**
+**Request:**
+```json
+{ "quantity": "5", "price": "120.50" }
 ```
-Posición actual: quantity=10, invested=1000, price=100
-Vendes: quantity=3, price=120
 
-PnL de la venta = (120 - 100) * 3 = +60
-InvestedAmount remaining = 1000 * (7/10) = 700
-Nueva quantity = 7
+**Response:**
+```json
+{
+  "sale": {
+    "quantity_sold": "5",
+    "sale_price": "120.50",
+    "total_proceeds": "602.50",
+    "invested_sold": "500",
+    "profit_loss": "102.50",
+    "remaining_qty": "5",
+    "remaining_invest": "500",
+    "is_full_sale": false
+  },
+  "position": { ... },
+  "is_full_sale": false
+}
 ```
 
 ---
@@ -299,13 +310,13 @@ Nueva quantity = 7
 
 ## Orden Sugerido Actualizado (al 2026-05-08)
 
-**Completado:** ~~9~~ (Dashboard Web), ~~8~~ (Asignación por Sector completa con warnings)
+**Completado:** ~~9~~ (Dashboard Web), ~~8~~ (Asignación por Sector), ~~2~~ (Ventas Parciales)
 
-**Próximo:** 2 → 1 → 3 → 4 → 11 → 7 → 12 → 6 → 5 → 10
+**Próximo:** 1 → 3 → 4 → 11 → 7 → 12 → 6 → 5 → 10
 
-1. **Ventas Parciales (#2)** — Feature crítica que falta para uso real
-2. **Multi-Portfolio (#1)** — Organización básica que todo usuario necesita
-3. **Historial de Transacciones (#3)** — Necesario para auditoría y base para XIRR
+1. **Multi-Portfolio (#1)** — Organización básica que todo usuario necesita
+2. **Historial de Transacciones (#3)** — Necesario para auditoría y base para XIRR
+3. **Multi-Currency (#4)** — Portafolios reales tienen múltiples divisas
 4. **Multi-Currency (#4)** — Portafolios reales tienen múltiples divisas
 5. **Dividendos (#11)** — Tracking de retorno total
 6. **Alertas (#7)** — Interactividad proactiva
