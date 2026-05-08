@@ -9,8 +9,11 @@ import (
 )
 
 var (
-	ErrPositionNotFound = errors.New("position not found")
-	ErrInvalidPosition  = errors.New("invalid position")
+	ErrPositionNotFound    = errors.New("position not found")
+	ErrInvalidPosition     = errors.New("invalid position")
+	ErrInsufficientShares  = errors.New("insufficient shares to sell")
+	ErrInvalidSaleQuantity = errors.New("invalid sale quantity")
+	ErrInvalidSalePrice    = errors.New("invalid sale price")
 )
 
 type Portfolio struct {
@@ -157,6 +160,132 @@ func (p *Portfolio) TotalProfitLossPercent() (Decimal, error) {
 		return Zero, fmt.Errorf("failed to multiply by 100: %w", err)
 	}
 	return result, nil
+}
+
+// SellPartialResult contains the result of a partial sale operation.
+type SellPartialResult struct {
+	Sale       *SaleTransaction `json:"sale"`
+	Position   *Position        `json:"position"`
+	IsFullSale bool             `json:"is_full_sale"`
+}
+
+// SellPartial sells a portion (or all) of a position.
+// It calculates the proportional invested amount to remove, records the P/L,
+// and returns a SaleTransaction for audit purposes.
+//
+// Parameters:
+//   - positionID: ID of the position to sell
+//   - quantityStr: quantity to sell (as string for decimal parsing)
+//   - salePriceStr: sale price per share (as string for decimal parsing)
+//
+// Returns:
+//   - SellPartialResult with the sale record and updated position
+//   - Error if validation fails or position not found
+func (p *Portfolio) SellPartial(positionID, quantityStr, salePriceStr string) (*SellPartialResult, error) {
+	// Parse input values
+	quantityToSell, err := NewDecimalFromString(quantityStr)
+	if err != nil || quantityToSell.Cmp(Zero) < 0 {
+		return nil, fmt.Errorf("invalid quantity: %w", ErrInvalidSaleQuantity)
+	}
+
+	salePrice, err := NewDecimalFromString(salePriceStr)
+	if err != nil || salePrice.Cmp(Zero) < 0 {
+		return nil, fmt.Errorf("invalid price: %w", ErrInvalidSalePrice)
+	}
+
+	// Find the position
+	var posIdx int = -1
+	for i, pos := range p.Positions {
+		if pos.ID == positionID {
+			posIdx = i
+			break
+		}
+	}
+	if posIdx == -1 {
+		return nil, ErrPositionNotFound
+	}
+
+	pos := &p.Positions[posIdx]
+
+	// Validate: cannot sell more than owned
+	if quantityToSell.Cmp(pos.Quantity) > 0 {
+		return nil, fmt.Errorf("trying to sell %s but only own %s: %w",
+			quantityToSell.String(), pos.Quantity.String(), ErrInsufficientShares)
+	}
+
+	// Calculate total proceeds from sale
+	totalProceeds, err := quantityToSell.Mul(salePrice)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate proceeds: %w", err)
+	}
+
+	// Calculate proportional invested amount to remove
+	// Formula: investedSold = investedAmount * (qtySold / qtyTotal)
+	saleRatio, err := quantityToSell.Div(pos.Quantity)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate sale ratio: %w", err)
+	}
+
+	investedSold, err := pos.InvestedAmount.Mul(saleRatio)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate invested sold: %w", err)
+	}
+
+	// Calculate P/L on the sold portion
+	profitLoss, err := totalProceeds.Sub(investedSold)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate profit/loss: %w", err)
+	}
+
+	// Calculate remaining values
+	remainingQty, err := pos.Quantity.Sub(quantityToSell)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate remaining quantity: %w", err)
+	}
+
+	remainingInvest, err := pos.InvestedAmount.Sub(investedSold)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate remaining invested: %w", err)
+	}
+
+	// Determine if this is a full sale
+	isFullSale := remainingQty.IsZero() || remainingQty.Cmp(NewDecimalFromInt(0)) == 0
+
+	// Create sale transaction record
+	sale := NewSaleTransaction(
+		pos.ID,
+		pos.Instrument.ISIN,
+		pos.Instrument.Symbol,
+		quantityToSell,
+		salePrice,
+		totalProceeds,
+		investedSold,
+		profitLoss,
+		pos.InvestedCurrency,
+		remainingQty,
+		remainingInvest,
+		isFullSale,
+	)
+
+	// Update the position
+	pos.Quantity = remainingQty
+	pos.InvestedAmount = remainingInvest
+	if isFullSale {
+		// Remove position entirely if fully sold
+		p.Positions = append(p.Positions[:posIdx], p.Positions[posIdx+1:]...)
+		pos = nil // Position no longer exists
+	} else {
+		pos.CurrentPrice = salePrice // Update to latest sale price
+		pos.LastUpdated = time.Now()
+	}
+
+	p.LastUpdated = time.Now()
+
+	return &SellPartialResult{
+		Sale:       sale,
+		Position:   pos,
+		IsFullSale: isFullSale,
+	}, nil
 }
 
 // Clone creates a deep copy of the portfolio and its positions.

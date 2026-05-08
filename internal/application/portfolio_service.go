@@ -169,3 +169,30 @@ func (s *PortfolioService) RefreshPrices(ctx context.Context) error {
 
 	return nil
 }
+
+func (s *PortfolioService) SellPartial(ctx context.Context, positionID, quantityStr, priceStr string) (*domain.SellPartialResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Execute the partial sale
+	result, err := s.defaultPortfolio.SellPartial(positionID, quantityStr, priceStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sell position: %w", err)
+	}
+
+	// Save the updated portfolio
+	if err := s.repo.Save(ctx, s.defaultPortfolio); err != nil {
+		return nil, fmt.Errorf("failed to save portfolio: %w", err)
+	}
+
+	// TODO: Save sale transaction to repository when SaleRepository is implemented
+	slog.InfoContext(ctx, "partial sale executed",
+		"position_id", positionID,
+		"quantity_sold", result.Sale.QuantitySold.String(),
+		"sale_price", result.Sale.SalePrice.String(),
+		"profit_loss", result.Sale.ProfitLoss.String(),
+		"is_full_sale", result.IsFullSale,
+	)
+
+	return result, nil
+}

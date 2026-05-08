@@ -28,6 +28,7 @@ type MockPortfolioService struct {
 	listPositionsFunc       func(ctx context.Context) ([]domain.Position, error)
 	getPortfolioSummaryFunc func(ctx context.Context) (*domain.Portfolio, error)
 	refreshPricesFunc       func(ctx context.Context) error
+	sellPartialFunc         func(ctx context.Context, positionID, quantityStr, priceStr string) (*domain.SellPartialResult, error)
 }
 
 func withDomainContext(t *testing.T, ctx *apd.Context, fn func()) {
@@ -93,6 +94,13 @@ func (m *MockPortfolioService) RefreshPrices(ctx context.Context) error {
 		return m.refreshPricesFunc(ctx)
 	}
 	return fmt.Errorf("not implemented")
+}
+
+func (m *MockPortfolioService) SellPartial(ctx context.Context, positionID, quantityStr, priceStr string) (*domain.SellPartialResult, error) {
+	if m.sellPartialFunc != nil {
+		return m.sellPartialFunc(ctx, positionID, quantityStr, priceStr)
+	}
+	return nil, fmt.Errorf("not implemented")
 }
 
 // --- Test Setup ---
