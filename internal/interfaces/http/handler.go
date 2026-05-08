@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -220,9 +221,10 @@ func (h *Handler) SellPartial(c *gin.Context) {
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "Failed to sell position", "position_id", positionID, "error", err)
 		statusCode := http.StatusInternalServerError
-		if err == domain.ErrPositionNotFound {
+		switch {
+		case err == domain.ErrPositionNotFound:
 			statusCode = http.StatusNotFound
-		} else if err == domain.ErrInsufficientShares || err == domain.ErrInvalidSaleQuantity || err == domain.ErrInvalidSalePrice {
+		case errors.Is(err, domain.ErrInsufficientShares), errors.Is(err, domain.ErrInvalidSaleQuantity), errors.Is(err, domain.ErrInvalidSalePrice):
 			statusCode = http.StatusBadRequest
 		}
 		c.JSON(statusCode, ErrorResponse{Error: err.Error()})

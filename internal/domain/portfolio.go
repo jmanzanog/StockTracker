@@ -194,7 +194,7 @@ func (p *Portfolio) SellPartial(positionID, quantityStr, salePriceStr string) (*
 	}
 
 	// Find the position
-	var posIdx int = -1
+	posIdx := -1
 	for i, pos := range p.Positions {
 		if pos.ID == positionID {
 			posIdx = i
