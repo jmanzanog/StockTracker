@@ -14,6 +14,7 @@ func SetupRoutes(router *gin.Engine, handler *Handler) {
 		api.GET("/positions", handler.ListPositions)
 		api.GET("/positions/:id", handler.GetPosition)
 		api.DELETE("/positions/:id", handler.DeletePosition)
+		api.POST("/positions/:id/sell", handler.SellPartial)
 
 		api.GET("/portfolio", handler.GetPortfolio)
 		api.POST("/portfolio/refresh", handler.RefreshPrices)

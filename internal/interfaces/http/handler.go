@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -23,6 +24,7 @@ type PortfolioService interface {
 	ListPositions(ctx context.Context) ([]domain.Position, error)
 	GetPortfolioSummary(ctx context.Context) (*domain.Portfolio, error)
 	RefreshPrices(ctx context.Context) error
+	SellPartial(ctx context.Context, positionID, quantityStr, priceStr string) (*domain.SellPartialResult, error)
 }
 
 type Handler struct {
@@ -47,6 +49,11 @@ type AddPositionRequest struct {
 	ISIN           string         `json:"isin" binding:"required"`
 	InvestedAmount domain.Decimal `json:"invested_amount" binding:"required"`
 	Currency       string         `json:"currency" binding:"required"`
+}
+
+type SellPartialRequest struct {
+	Quantity domain.Decimal `json:"quantity" binding:"required"`
+	Price    domain.Decimal `json:"price" binding:"required"`
 }
 
 type ErrorResponse struct {
@@ -106,6 +113,46 @@ type SparklinePointResponse struct {
 	Price string    `json:"price"`
 }
 
+type SellPartialResponse struct {
+	Sale       SaleTransactionResponse `json:"sale"`
+	Position   *PositionResponse       `json:"position,omitempty"`
+	IsFullSale bool                    `json:"is_full_sale"`
+}
+
+type SaleTransactionResponse struct {
+	ID              string    `json:"id"`
+	PositionID      string    `json:"position_id"`
+	ISIN            string    `json:"isin"`
+	Symbol          string    `json:"symbol"`
+	QuantitySold    string    `json:"quantity_sold"`
+	SalePrice       string    `json:"sale_price"`
+	TotalProceeds   string    `json:"total_proceeds"`
+	InvestedSold    string    `json:"invested_sold"`
+	ProfitLoss      string    `json:"profit_loss"`
+	ProfitLossPct   string    `json:"profit_loss_pct"`
+	Currency        string    `json:"currency"`
+	SoldAt          time.Time `json:"sold_at"`
+	RemainingQty    string    `json:"remaining_qty"`
+	RemainingInvest string    `json:"remaining_invest"`
+	IsFullSale      bool      `json:"is_full_sale"`
+}
+
+type PositionResponse struct {
+	ID             string `json:"id"`
+	ISIN           string `json:"isin"`
+	Symbol         string `json:"symbol"`
+	Name           string `json:"name"`
+	Type           string `json:"type"`
+	Sector         string `json:"sector"`
+	Quantity       string `json:"quantity"`
+	CurrentPrice   string `json:"current_price"`
+	CurrentValue   string `json:"current_value"`
+	InvestedAmount string `json:"invested_amount"`
+	PnL            string `json:"pnl"`
+	PnLPercent     string `json:"pnl_percent"`
+	Currency       string `json:"currency"`
+}
+
 func (h *Handler) AddPosition(c *gin.Context) {
 	var req AddPositionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -158,6 +205,34 @@ func (h *Handler) DeletePosition(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusNoContent, nil)
+}
+
+func (h *Handler) SellPartial(c *gin.Context) {
+	positionID := c.Param("id")
+
+	var req SellPartialRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		slog.ErrorContext(c.Request.Context(), "Invalid sale request body", "error", err)
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	result, err := h.portfolioService.SellPartial(c.Request.Context(), positionID, req.Quantity.String(), req.Price.String())
+	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "Failed to sell position", "position_id", positionID, "error", err)
+		statusCode := http.StatusInternalServerError
+		switch {
+		case err == domain.ErrPositionNotFound:
+			statusCode = http.StatusNotFound
+		case errors.Is(err, domain.ErrInsufficientShares), errors.Is(err, domain.ErrInvalidSaleQuantity), errors.Is(err, domain.ErrInvalidSalePrice):
+			statusCode = http.StatusBadRequest
+		}
+		c.JSON(statusCode, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	response := toSellPartialResponse(result)
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *Handler) GetPortfolio(c *gin.Context) {
@@ -370,4 +445,54 @@ func parseSparklineDays(s string) []int {
 		days = []int{7, 30, 90}
 	}
 	return days
+}
+
+func toSellPartialResponse(result *domain.SellPartialResult) SellPartialResponse {
+	sale := result.Sale
+	saleResp := SaleTransactionResponse{
+		ID:              sale.ID,
+		PositionID:      sale.PositionID,
+		ISIN:            sale.ISIN,
+		Symbol:          sale.Symbol,
+		QuantitySold:    sale.QuantitySold.String(),
+		SalePrice:       sale.SalePrice.String(),
+		TotalProceeds:   sale.TotalProceeds.String(),
+		InvestedSold:    sale.InvestedSold.String(),
+		ProfitLoss:      sale.ProfitLoss.String(),
+		ProfitLossPct:   sale.ProfitLossPct.String(),
+		Currency:        sale.Currency,
+		SoldAt:          sale.SoldAt,
+		RemainingQty:    sale.RemainingQty.String(),
+		RemainingInvest: sale.RemainingInvest.String(),
+		IsFullSale:      sale.IsFullSale,
+	}
+
+	var posResp *PositionResponse
+	if result.Position != nil {
+		pos := result.Position
+		currentValue, _ := pos.CurrentValue()
+		pnl, _ := pos.ProfitLoss()
+		pnlPct, _ := pos.ProfitLossPercent()
+		posResp = &PositionResponse{
+			ID:             pos.ID,
+			ISIN:           pos.Instrument.ISIN,
+			Symbol:         pos.Instrument.Symbol,
+			Name:           pos.Instrument.Name,
+			Type:           string(pos.Instrument.Type),
+			Sector:         pos.Instrument.Sector,
+			Quantity:       pos.Quantity.String(),
+			CurrentPrice:   pos.CurrentPrice.String(),
+			CurrentValue:   currentValue.String(),
+			InvestedAmount: pos.InvestedAmount.String(),
+			PnL:            pnl.String(),
+			PnLPercent:     pnlPct.String(),
+			Currency:       pos.InvestedCurrency,
+		}
+	}
+
+	return SellPartialResponse{
+		Sale:       saleResp,
+		Position:   posResp,
+		IsFullSale: result.IsFullSale,
+	}
 }
