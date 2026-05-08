@@ -24,7 +24,7 @@
 | # | Idea | Impacto | Esfuerzo | Estado | Próximo paso |
 |---|------|---------|----------|--------|---------------|
 | ~~9~~ | ~~Dashboard Web~~ | ~~🔴 Alto~~ | ~~🟡 Medio~~ | ✅ **HECHO** (PR #58) | — |
-| ~~8~~ | ~~Asignación por Sector~~ | ~~🟢 Bajo~~ | ~~🟢 Bajo~~ | ✅ **PARCIAL** (allocations en dashboard) | Falta por sector específico |
+| ~~8~~ | ~~Asignación por Sector~~ | ~~🟢 Bajo~~ | ~~🟢 Bajo~~ | ✅ **COMPLETADO** (PR #69) | Warnings de concentración implementados |
 | 2 | Ventas Parciales | 🔴 Alto | 🟡 Medio | ⬜ Pendiente | 🚨 Empezar aquí |
 | 1 | Multi-Portfolio | 🔴 Alto | 🟡 Medio | ⬜ Pendiente | 🚨 Empezar aquí |
 | 3 | Historial de Transacciones | 🟡 Medio | 🟡 Medio | ⬜ Pendiente | 🔶 Segundo lote |
@@ -222,13 +222,18 @@ Nueva quantity = 7
 
 ---
 
-### ~~8. 🗺️ Asignación por Sector/Asset Class~~ ✅ **PARCIAL (2026-03-25)**
+### ~~8. 🗺️ Asignación por Sector/Asset Class~~ ✅ **COMPLETADO (2026-05-08)**
 
-**Estado:** Implementado parcialmente en PR #54. El dashboard muestra:
-- Allocation breakdown por tipo de activo (ETF vs Stock)
-- Porcentajes y valores absolutos
+**Estado:** Completado en PR #69. El dashboard ahora muestra:
+- ✅ Allocation breakdown por tipo de activo (ETF vs Stock)
+- ✅ Allocation breakdown por sector (Technology, Healthcare, Finance, etc.)
+- ✅ Warnings de concentración cuando algún sector o tipo excede 40%
+- ✅ Porcentajes y valores absolutos
 
-**Pendiente:** Falta el breakdown por sector específico (equity_world, equity_usa, equity_em, etc.) y las warnings de concentración (>40%).
+**Implementación:**
+- Backend: `DashboardSnapshot.Warnings` calcula automáticamente warnings >40%
+- Frontend: Tarjeta roja con warnings aparece sobre las allocation cards
+- Tests: Unit tests para validación de lógica de warnings
 
 **Qué añade:** En el `GET /portfolio` response, un breakdown por tipo de activo (`etf`, `stock`) y por sector. Incluye % del portafolio, y alerta si algún sector > 40%.
 
@@ -294,7 +299,7 @@ Nueva quantity = 7
 
 ## Orden Sugerido Actualizado (al 2026-05-08)
 
-**Completado:** ~~9~~ (Dashboard Web), ~~8~~ parcial (Allocations por tipo)
+**Completado:** ~~9~~ (Dashboard Web), ~~8~~ (Allocations + Warnings de concentración)
 
 **Próximo:** 2 → 1 → 3 → 4 → 11 → 7 → 12 → 6 → 5 → 10
 
