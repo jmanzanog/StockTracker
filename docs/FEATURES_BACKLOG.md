@@ -1,26 +1,40 @@
 # Stock Tracker — Ideas para el Backlog
 
 > Generado: 2026-03-25
+> Última actualización: 2026-05-08
 > Status: Backlog — priorizado por impacto y esfuerzo
+
+---
+
+## ✅ Lo que YA está implementado (al 2026-05-08)
+
+| # | Idea | Estado | PR | Fecha |
+|---|------|--------|-----|-------|
+| 9 | Dashboard Web | ✅ **COMPLETADO** | #58 | 2026-03-30 |
+| 8 | Asignación por Sector | ✅ **PARCIAL** | #54 | 2026-03-25 (allocations en dashboard) |
+
+**Detalles:**
+- **Dashboard Web (#58):** Endpoint `/dashboard` con UI ligera, sparklines, tabla de posiciones y breakdown de asignación. Auto-hosted, cero dependencias frontend.
+- **Asignación por Sector (#54):** El dashboard incluye `allocation breakdown` por tipo de activo (etf/stock). Falta el breakdown por sector específico (ej: equity_world, equity_usa).
 
 ---
 
 ## Resumen de Priorización Rápida
 
-| # | Idea | Impacto | Esfuerzo | Recomendación |
-|---|------|---------|----------|---------------|
-| 2 | Ventas Parciales | 🔴 Alto | 🟡 Medio | 🚨 Empezar aquí |
-| 1 | Multi-Portfolio | 🔴 Alto | 🟡 Medio | 🚨 Empezar aquí |
-| 3 | Historial de Transacciones | 🟡 Medio | 🟡 Medio | 🔶 Segundo lote |
-| 9 | Dashboard Web | 🔴 Alto | 🟡 Medio | 🔶 Segundo lote |
-| 4 | Multi-Currency | 🟡 Medio | 🟡 Medio | 🔶 Segundo lote |
-| 11 | Dividendos | 🟡 Medio | 🟡 Medio | 🔶 Segundo lote |
-| 8 | Asignación por Sector | 🟢 Bajo | 🟢 Bajo | 🔷 Tercer lote |
-| 7 | Sistema de Alertas | 🟡 Medio | 🟡 Medio | 🔷 Tercer lote |
-| 6 | Analytics (XIRR) | 🟡 Medio | 🔴 Alto | 🔷 Tercer lote |
-| 12 | Rebalancing Advisor | 🟡 Medio | 🟡 Medio | 🔷 Tercer lote |
-| 5 | WebSocket | 🟡 Medio | 🔴 Alto | 🔷 Tercer lote |
-| 10 | Kubernetes/Helm | 🟢 Bajo | 🟢 Bajo | 🔷 Tercer lote |
+| # | Idea | Impacto | Esfuerzo | Estado | Próximo paso |
+|---|------|---------|----------|--------|---------------|
+| ~~9~~ | ~~Dashboard Web~~ | ~~🔴 Alto~~ | ~~🟡 Medio~~ | ✅ **HECHO** (PR #58) | — |
+| ~~8~~ | ~~Asignación por Sector~~ | ~~🟢 Bajo~~ | ~~🟢 Bajo~~ | ✅ **PARCIAL** (allocations en dashboard) | Falta por sector específico |
+| 2 | Ventas Parciales | 🔴 Alto | 🟡 Medio | ⬜ Pendiente | 🚨 Empezar aquí |
+| 1 | Multi-Portfolio | 🔴 Alto | 🟡 Medio | ⬜ Pendiente | 🚨 Empezar aquí |
+| 3 | Historial de Transacciones | 🟡 Medio | 🟡 Medio | ⬜ Pendiente | 🔶 Segundo lote |
+| 4 | Multi-Currency | 🟡 Medio | 🟡 Medio | ⬜ Pendiente | 🔶 Segundo lote |
+| 11 | Dividendos | 🟡 Medio | 🟡 Medio | ⬜ Pendiente | 🔶 Segundo lote |
+| 7 | Sistema de Alertas | 🟡 Medio | 🟡 Medio | ⬜ Pendiente | 🔷 Tercer lote |
+| 6 | Analytics (XIRR) | 🟡 Medio | 🔴 Alto | ⬜ Pendiente | 🔷 Tercer lote |
+| 12 | Rebalancing Advisor | 🟡 Medio | 🟡 Medio | ⬜ Pendiente | 🔷 Tercer lote |
+| 5 | WebSocket | 🟡 Medio | 🔴 Alto | ⬜ Pendiente | 🔷 Tercer lote |
+| 10 | Kubernetes/Helm | 🟢 Bajo | 🟢 Bajo | ⬜ Pendiente | 🔷 Tercer lote |
 
 ---
 
@@ -73,6 +87,19 @@ Nueva quantity = 7
 ---
 
 ## 🔶 Lote 2 — Hacerlo accesible y completo
+
+### ~~9. 📉 Interfaz Dashboard Web~~ ✅ **COMPLETADO 2026-03-30**
+
+**Estado:** Implementado en PR #58. Dashboard disponible en `/dashboard` con:
+- Summary cards (total value, P/L, positions count)
+- Allocation breakdown (by type: ETF vs Stock)
+- Positions table sortable
+- Sparklines de 7 días para cada posición
+- Cero dependencias frontend (vanilla JS + SVG)
+
+**Pendiente:** El breakdown es solo por tipo (etf/stock), falta por sector específico (ver #8).
+
+---
 
 ### 3. 📜 Historial de Transacciones (Transaction Log)
 
@@ -195,9 +222,13 @@ Nueva quantity = 7
 
 ---
 
-### 8. 🗺️ Asignación por Sector/Asset Class
+### ~~8. 🗺️ Asignación por Sector/Asset Class~~ ✅ **PARCIAL (2026-03-25)**
 
-**Situación actual:** No hay análisis de diversificación.
+**Estado:** Implementado parcialmente en PR #54. El dashboard muestra:
+- Allocation breakdown por tipo de activo (ETF vs Stock)
+- Porcentajes y valores absolutos
+
+**Pendiente:** Falta el breakdown por sector específico (equity_world, equity_usa, equity_em, etc.) y las warnings de concentración (>40%).
 
 **Qué añade:** En el `GET /portfolio` response, un breakdown por tipo de activo (`etf`, `stock`) y por sector. Incluye % del portafolio, y alerta si algún sector > 40%.
 
@@ -260,4 +291,20 @@ Nueva quantity = 7
 - **Tests:** Los E2E con Testcontainers y containers compartidos ya están listos — sirven como base para todos los nuevos features.
 - **Decimal precision:** El proyecto usa `cockroachdb/apd` con precision 20 — suficiente para todos los cálculos financieros incluyendo XIRR.
 - **Provider interface:** La arquitectura de market data providers es extensible — cualquier nueva feature de datos puede usar el mismo patrón de `MDataProvider` / `BatchProvider`.
-- **Orden sugerido:** 3 → 1 → 2 → 4 → 9 → 11 → 7 → 8 → 12 → 6 → 5 → 10
+
+## Orden Sugerido Actualizado (al 2026-05-08)
+
+**Completado:** ~~9~~ (Dashboard Web), ~~8~~ parcial (Allocations por tipo)
+
+**Próximo:** 2 → 1 → 3 → 4 → 11 → 7 → 12 → 6 → 5 → 10
+
+1. **Ventas Parciales (#2)** — Feature crítica que falta para uso real
+2. **Multi-Portfolio (#1)** — Organización básica que todo usuario necesita
+3. **Historial de Transacciones (#3)** — Necesario para auditoría y base para XIRR
+4. **Multi-Currency (#4)** — Portafolios reales tienen múltiples divisas
+5. **Dividendos (#11)** — Tracking de retorno total
+6. **Alertas (#7)** — Interactividad proactiva
+7. **Rebalancing Advisor (#12)** — Optimización de portafolio
+8. **XIRR (#6)** — Analytics avanzado (requiere #3)
+9. **WebSocket (#5)** — Real-time (optimización)
+10. **K8s/Helm (#10)** — Deploy production (infraestructura)
