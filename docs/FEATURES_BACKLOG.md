@@ -11,11 +11,11 @@
 | # | Idea | Estado | PR | Fecha |
 |---|------|--------|-----|-------|
 | 9 | Dashboard Web | ✅ **COMPLETADO** | #58 | 2026-03-30 |
-| 8 | Asignación por Sector | ✅ **PARCIAL** | #54 | 2026-03-25 (allocations en dashboard) |
+| 8 | Asignación por Sector | ✅ **COMPLETADO** | #69 | 2026-05-08 |
 
 **Detalles:**
 - **Dashboard Web (#58):** Endpoint `/dashboard` con UI ligera, sparklines, tabla de posiciones y breakdown de asignación. Auto-hosted, cero dependencias frontend.
-- **Asignación por Sector (#54):** El dashboard incluye `allocation breakdown` por tipo de activo (etf/stock). Falta el breakdown por sector específico (ej: equity_world, equity_usa).
+- **Asignación por Sector (#69):** Breakdown por tipo (ETF/Stock) y sector, con warnings automáticos cuando alguna concentración excede 40%.
 
 ---
 
@@ -24,7 +24,7 @@
 | # | Idea | Impacto | Esfuerzo | Estado | Próximo paso |
 |---|------|---------|----------|--------|---------------|
 | ~~9~~ | ~~Dashboard Web~~ | ~~🔴 Alto~~ | ~~🟡 Medio~~ | ✅ **HECHO** (PR #58) | — |
-| ~~8~~ | ~~Asignación por Sector~~ | ~~🟢 Bajo~~ | ~~🟢 Bajo~~ | ✅ **PARCIAL** (allocations en dashboard) | Falta por sector específico |
+| ~~8~~ | ~~Asignación por Sector~~ | ~~🟢 Bajo~~ | ~~🟢 Bajo~~ | ✅ **HECHO** (PR #69) | — |
 | 2 | Ventas Parciales | 🔴 Alto | 🟡 Medio | ⬜ Pendiente | 🚨 Empezar aquí |
 | 1 | Multi-Portfolio | 🔴 Alto | 🟡 Medio | ⬜ Pendiente | 🚨 Empezar aquí |
 | 3 | Historial de Transacciones | 🟡 Medio | 🟡 Medio | ⬜ Pendiente | 🔶 Segundo lote |
@@ -222,13 +222,18 @@ Nueva quantity = 7
 
 ---
 
-### ~~8. 🗺️ Asignación por Sector/Asset Class~~ ✅ **PARCIAL (2026-03-25)**
+### ~~8. 🗺️ Asignación por Sector/Asset Class~~ ✅ **COMPLETADO (2026-05-08)**
 
-**Estado:** Implementado parcialmente en PR #54. El dashboard muestra:
-- Allocation breakdown por tipo de activo (ETF vs Stock)
-- Porcentajes y valores absolutos
+**Estado:** Completado en PR #69. El dashboard ahora muestra:
+- ✅ Allocation breakdown por tipo de activo (ETF vs Stock)
+- ✅ Allocation breakdown por sector (Technology, Healthcare, Finance, etc.)
+- ✅ Warnings automáticos cuando sector o tipo excede 40% de concentración
+- ✅ Porcentajes y valores absolutos
 
-**Pendiente:** Falta el breakdown por sector específico (equity_world, equity_usa, equity_em, etc.) y las warnings de concentración (>40%).
+**Implementación:**
+- Backend: `DashboardSnapshot.Warnings` calcula warnings automáticamente
+- Frontend: Tarjeta roja con warnings aparece sobre las allocation cards
+- Tests: Unit tests para validación de lógica de warnings
 
 **Qué añade:** En el `GET /portfolio` response, un breakdown por tipo de activo (`etf`, `stock`) y por sector. Incluye % del portafolio, y alerta si algún sector > 40%.
 
@@ -294,7 +299,7 @@ Nueva quantity = 7
 
 ## Orden Sugerido Actualizado (al 2026-05-08)
 
-**Completado:** ~~9~~ (Dashboard Web), ~~8~~ parcial (Allocations por tipo)
+**Completado:** ~~9~~ (Dashboard Web), ~~8~~ (Asignación por Sector completa con warnings)
 
 **Próximo:** 2 → 1 → 3 → 4 → 11 → 7 → 12 → 6 → 5 → 10
 
